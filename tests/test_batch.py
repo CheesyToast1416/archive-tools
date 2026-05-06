@@ -6,12 +6,14 @@ from pathlib import Path
 
 import pytest
 
-from archivetools.operations import extract_cjk
+from archivetools.operations import extract_cjk, list_cjk
 
 
-def _make_zip(path: Path, name: str = "hello.txt") -> Path:
+def _make_zip(path: Path, entries: dict[str, str] | None = None) -> Path:
+    entries = entries or {"hello.txt": "content"}
     with zipfile.ZipFile(path, "w") as zf:
-        zf.writestr(name, "content")
+        for name, content in entries.items():
+            zf.writestr(name, content)
     return path
 
 
@@ -24,36 +26,74 @@ def _make_tar(path: Path) -> Path:
     return path
 
 
+def _smart_extract(archive: Path, output_dir: str | None = None) -> bool:
+    """Simulate what BatchExtractionWorker now does: list then smart-extract."""
+    _, _, names = list_cjk(archive, "", None, None)
+    ok, _ = extract_cjk(
+        archive,
+        "",
+        output_dir,
+        filename_encoding=None,
+        password_encoding=None,
+        names=names,
+        smart=True,
+    )
+    return ok
+
+
 class TestBatchExtraction:
-    """Test the underlying extract_cjk() used by BatchExtractionWorker."""
+    """Tests for BatchExtractionWorker's smart-extraction path."""
 
     def test_multiple_zips(self, tmp_path: Path) -> None:
         a = _make_zip(tmp_path / "a.zip")
-        b = _make_zip(tmp_path / "b.zip", "data.csv")
-        out_a = tmp_path / "out_a"
-        out_b = tmp_path / "out_b"
-        ok_a, _ = extract_cjk(
-            a, "", str(out_a), filename_encoding=None, password_encoding=None
-        )
-        ok_b, _ = extract_cjk(
-            b, "", str(out_b), filename_encoding=None, password_encoding=None
-        )
-        assert ok_a and ok_b
-        assert (out_a / "hello.txt").exists()
-        assert (out_b / "data.csv").exists()
+        b = _make_zip(tmp_path / "b.zip", {"data.csv": "x,y"})
+        out = tmp_path / "out"
+        out.mkdir()
+        assert _smart_extract(a, str(out))
+        assert _smart_extract(b, str(out))
+        assert (out / "hello.txt").exists()
+        assert (out / "data.csv").exists()
 
     def test_zip_and_tar(self, tmp_path: Path) -> None:
         z = _make_zip(tmp_path / "c.zip")
         t = _make_tar(tmp_path / "d.tar")
-        out_z = tmp_path / "out_z"
-        out_t = tmp_path / "out_t"
-        ok_z, _ = extract_cjk(
-            z, "", str(out_z), filename_encoding=None, password_encoding=None
+        out = tmp_path / "out"
+        out.mkdir()
+        assert _smart_extract(z, str(out))
+        assert _smart_extract(t, str(out))
+
+    def test_single_dir_multi_children_no_double_wrap(self, tmp_path: Path) -> None:
+        # myapp.zip → myapp/file1.txt, myapp/file2.txt (2 children → keep dir)
+        # Without smart: output/myapp/myapp/file1.txt ← double-nested
+        # With smart:    output/myapp/file1.txt        ← correct
+        z = _make_zip(
+            tmp_path / "myapp.zip", {"myapp/file1.txt": "x", "myapp/file2.txt": "y"}
         )
-        ok_t, _ = extract_cjk(
-            t, "", str(out_t), filename_encoding=None, password_encoding=None
-        )
-        assert ok_z and ok_t
+        out = tmp_path / "out"
+        out.mkdir()
+        assert _smart_extract(z, str(out))
+        assert (out / "myapp" / "file1.txt").exists()
+        assert not (out / "myapp" / "myapp").exists(), "double-nesting still present"
+
+    def test_single_dir_one_child_unwrapped(self, tmp_path: Path) -> None:
+        # myapp.zip → myapp/only.txt (1 child → unwrap the wrapper dir)
+        # With smart: output/only.txt
+        z = _make_zip(tmp_path / "myapp.zip", {"myapp/only.txt": "x"})
+        out = tmp_path / "out"
+        out.mkdir()
+        assert _smart_extract(z, str(out))
+        assert (out / "only.txt").exists()
+        assert not (out / "myapp").exists(), "wrapper not collapsed"
+
+    def test_multi_archive_wrapped(self, tmp_path: Path) -> None:
+        # Archive files.zip containing file1.txt, file2.txt (no top-level dir)
+        # Should be wrapped: output/files/file1.txt
+        z = _make_zip(tmp_path / "files.zip", {"file1.txt": "a", "file2.txt": "b"})
+        out = tmp_path / "out"
+        out.mkdir()
+        assert _smart_extract(z, str(out))
+        assert (out / "files" / "file1.txt").exists()
+        assert (out / "files" / "file2.txt").exists()
 
     def test_nonexistent_raises(self, tmp_path: Path) -> None:
         with pytest.raises(FileNotFoundError):

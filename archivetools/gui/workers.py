@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
-from pathlib import Path
 
 from PySide6.QtCore import QThread, Signal
 
@@ -285,15 +284,24 @@ class BatchExtractionWorker(_BaseWorker):
             for i, archive_path in enumerate(self._archives):
                 self.archive_started.emit(i)
                 try:
-                    dest = self._dest_for(archive_path)
+                    # List archive first so smart extraction can pick the right dest.
+                    # list_cjk is a fast header scan (no decompression).
+                    _ok, _enc, names = list_cjk(
+                        archive_path,
+                        self._password,
+                        self._filename_encoding,
+                        self._password_encoding,
+                    )
                     ok, enc = extract_cjk(
                         archive_path,
                         self._password,
-                        dest,
+                        self._output_dir,  # None → extract next to archive
                         filename_encoding=self._filename_encoding,
                         password_encoding=self._password_encoding,
                         progress=lambda c, t, f: self.file_progress.emit(c, t, f),
                         bytes_progress=lambda d, s: self.bytes_progress.emit(d, s),
+                        names=names if _ok else None,
+                        smart=True,
                     )
                     if ok:
                         ok_count += 1
@@ -307,11 +315,3 @@ class BatchExtractionWorker(_BaseWorker):
         finally:
             self._remove_log_handler(handler)
             self.result.emit(ok_count, fail_count)
-
-    def _dest_for(self, archive_path: str) -> str | None:
-        if not self._output_dir:
-            return None  # each archive extracts next to itself (default)
-        stem = Path(archive_path).stem
-        if stem.lower().endswith(".tar"):
-            stem = stem[:-4]
-        return str(Path(self._output_dir) / stem)
