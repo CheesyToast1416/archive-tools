@@ -24,8 +24,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from archivetools.config.passwords import PasswordStore
+from archivetools.config.settings import AppSettings
 from archivetools.gui.widgets.archive_picker import ArchivePickerWidget
 from archivetools.gui.widgets.encoding_combo import EncodingComboBox
+from archivetools.gui.widgets.password_picker_btn import PasswordPickerButton
 from archivetools.gui.widgets.progress_dialog import ExtractionProgressDialog
 from archivetools.gui.workers import BatchExtractionWorker
 
@@ -85,11 +88,19 @@ class BatchPanel(QWidget):
 
     status_changed = Signal(str)
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        settings: AppSettings | None = None,
+        store: PasswordStore | None = None,
+        parent: QWidget | None = None,
+    ) -> None:
         super().__init__(parent)
         self._worker: BatchExtractionWorker | None = None
         self._progress_dialog: ExtractionProgressDialog | None = None
+        self._store = store
         self._build_ui()
+        if settings is not None:
+            self.apply_settings(settings)
 
     # ── UI ────────────────────────────────────────────────────────────────────
 
@@ -152,8 +163,15 @@ class BatchPanel(QWidget):
         )
         self._eye_btn.setToolTip("Show / hide password")
         self._eye_btn.toggled.connect(self._toggle_password_visibility)
+        from archivetools.config.passwords import get_password_store
+
+        self._pwd_picker = PasswordPickerButton(
+            self._store if self._store is not None else get_password_store()
+        )
+        self._pwd_picker.password_selected.connect(self._password_edit.setText)
         pwd_layout.addWidget(self._password_edit)
         pwd_layout.addWidget(self._eye_btn)
+        pwd_layout.addWidget(self._pwd_picker)
         form.addRow("Password:", pwd_row)
 
         self._pwd_encoding = EncodingComboBox()
@@ -364,6 +382,16 @@ class BatchPanel(QWidget):
         self._worker = None
 
     # ── Helpers ───────────────────────────────────────────────────────────────
+
+    def apply_settings(self, settings: AppSettings) -> None:
+        from archivetools.gui.dialogs.settings_dialog import _set_combo_codec
+
+        _set_combo_codec(self._pwd_encoding, settings.default_password_encoding)
+        _set_combo_codec(self._fname_encoding, settings.default_filename_encoding)
+        self._trash_after_batch.setChecked(settings.trash_after_batch)
+
+    def refresh_password_picker(self) -> None:
+        self._pwd_picker.refresh()
 
     def handle_drop(self, path: str) -> None:
         self._add_paths([path])

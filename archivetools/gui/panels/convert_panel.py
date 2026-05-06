@@ -18,8 +18,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from archivetools.config.passwords import PasswordStore
+from archivetools.config.settings import AppSettings
 from archivetools.gui.widgets.archive_picker import ArchivePickerWidget
 from archivetools.gui.widgets.encoding_combo import EncodingComboBox
+from archivetools.gui.widgets.password_picker_btn import PasswordPickerButton
 from archivetools.gui.workers import ConvertWorker
 
 _ARCHIVE_FILTER = (
@@ -50,11 +53,19 @@ class ConvertPanel(QWidget):
 
     status_changed = Signal(str)
 
-    def __init__(self, parent=None) -> None:
+    def __init__(
+        self,
+        settings: AppSettings | None = None,
+        store: PasswordStore | None = None,
+        parent=None,
+    ) -> None:
         super().__init__(parent)
         self._worker: ConvertWorker | None = None
+        self._store = store
         self._build_ui()
         self._on_format_changed(0)
+        if settings is not None:
+            self.apply_settings(settings)
 
     # ── UI ────────────────────────────────────────────────────────────────────
 
@@ -105,7 +116,14 @@ class ConvertPanel(QWidget):
             )
         )
         pwd_layout.addWidget(self._src_password)
+        from archivetools.config.passwords import get_password_store
+
+        self._src_pwd_picker = PasswordPickerButton(
+            self._store if self._store is not None else get_password_store()
+        )
+        self._src_pwd_picker.password_selected.connect(self._src_password.setText)
         pwd_layout.addWidget(self._src_eye)
+        pwd_layout.addWidget(self._src_pwd_picker)
         form.addRow("Password:", pwd_row)
 
         self._pwd_encoding = EncodingComboBox()
@@ -152,7 +170,14 @@ class ConvertPanel(QWidget):
             )
         )
         out_pwd_layout.addWidget(self._out_password)
+        from archivetools.config.passwords import get_password_store
+
+        self._out_pwd_picker = PasswordPickerButton(
+            self._store if self._store is not None else get_password_store()
+        )
+        self._out_pwd_picker.password_selected.connect(self._out_password.setText)
         out_pwd_layout.addWidget(self._out_eye)
+        out_pwd_layout.addWidget(self._out_pwd_picker)
         self._out_pwd_label = QLabel("Output password:")
         form.addRow(self._out_pwd_label, out_pwd_row)
         self._out_pwd_row = out_pwd_row
@@ -234,6 +259,16 @@ class ConvertPanel(QWidget):
         self._worker = None
 
     # ── Helpers ───────────────────────────────────────────────────────────────
+
+    def apply_settings(self, settings: AppSettings) -> None:
+        from archivetools.gui.dialogs.settings_dialog import _set_combo_codec
+
+        _set_combo_codec(self._pwd_encoding, settings.default_password_encoding)
+        _set_combo_codec(self._fname_encoding, settings.default_filename_encoding)
+
+    def refresh_password_picker(self) -> None:
+        self._src_pwd_picker.refresh()
+        self._out_pwd_picker.refresh()
 
     def handle_drop(self, path: str) -> None:
         self._src_picker.set_path(path)

@@ -22,12 +22,15 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from archivetools.config.passwords import PasswordStore
+from archivetools.config.settings import AppSettings
 from archivetools.encoding.detect import (
     detect_rar_filename_encoding,
     detect_zip_filename_encoding,
 )
 from archivetools.gui.widgets.archive_picker import ArchivePickerWidget
 from archivetools.gui.widgets.encoding_combo import EncodingComboBox
+from archivetools.gui.widgets.password_picker_btn import PasswordPickerButton
 from archivetools.gui.widgets.progress_dialog import ExtractionProgressDialog
 from archivetools.gui.workers import ExtractionWorker, ListWorker, TestWorker
 
@@ -45,13 +48,21 @@ class ExtractPanel(QWidget):
 
     status_changed = Signal(str)  # for MainWindow status bar
 
-    def __init__(self, parent=None) -> None:
+    def __init__(
+        self,
+        settings: AppSettings | None = None,
+        store: PasswordStore | None = None,
+        parent=None,
+    ) -> None:
         super().__init__(parent)
         self._worker: _AnyWorker | None = None
         self._preview_valid = False
-        self._preview_names: list[str] = []  # kept for smart extraction
+        self._preview_names: list[str] = []
         self._progress_dialog: ExtractionProgressDialog | None = None
+        self._store = store
         self._build_ui()
+        if settings is not None:
+            self.apply_settings(settings)
 
     # ── UI Construction ───────────────────────────────────────────────────────
 
@@ -128,8 +139,15 @@ class ExtractPanel(QWidget):
         self._eye_btn.setToolTip("Show / hide password")
         self._eye_btn.toggled.connect(self._toggle_password_visibility)
 
+        from archivetools.config.passwords import get_password_store
+
+        self._pwd_picker = PasswordPickerButton(
+            self._store if self._store is not None else get_password_store()
+        )
+        self._pwd_picker.password_selected.connect(self._password_edit.setText)
         pwd_layout.addWidget(self._password_edit)
         pwd_layout.addWidget(self._eye_btn)
+        pwd_layout.addWidget(self._pwd_picker)
         form.addRow("Password:", pwd_row)
 
         self._pwd_encoding_combo = EncodingComboBox()
@@ -421,6 +439,21 @@ class ExtractPanel(QWidget):
             item = QTreeWidgetItem([name, "directory" if is_dir else "file"])
             item.setIcon(0, dir_icon if is_dir else file_icon)
             self._contents_tree.addTopLevelItem(item)
+
+    def apply_settings(self, settings: AppSettings) -> None:
+        """Apply persistent settings to this panel's controls."""
+        from archivetools.gui.dialogs.settings_dialog import _set_combo_codec
+
+        _set_combo_codec(self._pwd_encoding_combo, settings.default_password_encoding)
+        _set_combo_codec(
+            self._filename_encoding_combo, settings.default_filename_encoding
+        )
+        self._trash_after_extract.setChecked(settings.trash_after_extract)
+        if settings.default_output_dir:
+            self._output_picker.set_path(settings.default_output_dir)
+
+    def refresh_password_picker(self) -> None:
+        self._pwd_picker.refresh()
 
     def handle_drop(self, path: str) -> None:
         self._archive_picker.set_path(path)

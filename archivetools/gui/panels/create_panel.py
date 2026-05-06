@@ -23,7 +23,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from archivetools.config.passwords import PasswordStore
+from archivetools.config.settings import AppSettings
 from archivetools.gui.widgets.archive_picker import ArchivePickerWidget
+from archivetools.gui.widgets.password_picker_btn import PasswordPickerButton
 from archivetools.gui.workers import CreateWorker
 
 _FORMATS = [
@@ -78,11 +81,19 @@ class CreatePanel(QWidget):
 
     status_changed = Signal(str)
 
-    def __init__(self, parent=None) -> None:
+    def __init__(
+        self,
+        settings: AppSettings | None = None,
+        store: PasswordStore | None = None,
+        parent=None,
+    ) -> None:
         super().__init__(parent)
         self._worker: CreateWorker | None = None
+        self._store = store
         self._build_ui()
         self._on_format_changed(0)
+        if settings is not None:
+            self.apply_settings(settings)
 
     # ── UI Construction ───────────────────────────────────────────────────────
 
@@ -186,8 +197,15 @@ class CreatePanel(QWidget):
         )
         self._eye_btn.setToolTip("Show / hide password")
         self._eye_btn.toggled.connect(self._toggle_password_visibility)
+        from archivetools.config.passwords import get_password_store
+
+        self._pwd_picker = PasswordPickerButton(
+            self._store if self._store is not None else get_password_store()
+        )
+        self._pwd_picker.password_selected.connect(self._password_edit.setText)
         pwd_layout.addWidget(self._password_edit)
         pwd_layout.addWidget(self._eye_btn)
+        pwd_layout.addWidget(self._pwd_picker)
         self._password_form_label = QLabel("Password:")
         form.addRow(self._password_form_label, pwd_row)
         self._password_row = pwd_row
@@ -315,6 +333,12 @@ class CreatePanel(QWidget):
         self._worker = None
 
     # ── Helpers ───────────────────────────────────────────────────────────────
+
+    def apply_settings(self, settings: AppSettings) -> None:
+        self._trash_after_create.setChecked(settings.trash_after_create)
+
+    def refresh_password_picker(self) -> None:
+        self._pwd_picker.refresh()
 
     def handle_drop(self, path: str) -> None:
         """Add dropped file/folder to the files list."""

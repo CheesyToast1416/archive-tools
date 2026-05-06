@@ -4,6 +4,8 @@ import sys
 
 from PySide6.QtWidgets import QApplication
 
+from archivetools.config.passwords import get_password_store
+from archivetools.config.settings import get_settings
 from archivetools.gui.main_window import MainWindow
 
 
@@ -13,7 +15,10 @@ def main() -> None:
     app.setApplicationDisplayName("ArchiveTools")
     app.setStyle("Fusion")
 
-    window = MainWindow()
+    settings = get_settings()
+    store = get_password_store()
+
+    window = MainWindow(settings, store)
     window.show()
 
     sys.exit(app.exec())

@@ -16,6 +16,7 @@ dependencies = [
     "py7zr",
     "charset-normalizer>=3.0",
     "send2trash",
+    "keyring",
 ]
 
 [project.scripts]
@@ -67,7 +68,11 @@ ignore_missing_imports = true
 
 # Third-party libraries without stubs
 [[tool.mypy.overrides]]
-module = ["pyzipper", "rarfile", "py7zr", "charset_normalizer", "send2trash"]
+module = ["pyzipper", "rarfile", "py7zr", "charset_normalizer", "send2trash", "keyring"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["cryptography.*"]
 ignore_missing_imports = true
 
 # Test files: strict annotations are not required for tests
