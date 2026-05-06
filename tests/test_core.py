@@ -79,3 +79,31 @@ class TestDetectHandler:
         handler, canonical = detect_handler(p)
         assert isinstance(handler, SevenZipHandler)
         assert canonical == p
+
+
+class TestMagicByteDetection:
+    def test_zip_no_extension(self, tmp_path):
+        import zipfile
+        src = tmp_path / "archive"  # no extension
+        with zipfile.ZipFile(src, "w") as zf:
+            zf.writestr("hello.txt", "world")
+        handler, _ = detect_handler(src)
+        assert isinstance(handler, ZipHandler)
+
+    def test_7z_no_extension(self, tmp_path):
+        src = tmp_path / "archive"
+        src.write_bytes(b"7z\xbc\xaf\x27\x1c\x00\x04")
+        handler, _ = detect_handler(src)
+        assert isinstance(handler, SevenZipHandler)
+
+    def test_rar5_no_extension(self, tmp_path):
+        src = tmp_path / "archive"
+        src.write_bytes(b"Rar!\x1a\x07\x01\x00")
+        handler, _ = detect_handler(src)
+        assert isinstance(handler, RarHandler)
+
+    def test_unsupported_no_extension(self, tmp_path):
+        src = tmp_path / "archive"
+        src.write_bytes(b"\x00\x01\x02\x03unknown")
+        with pytest.raises(ValueError):
+            detect_handler(src)

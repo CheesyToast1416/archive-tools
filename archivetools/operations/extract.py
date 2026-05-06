@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import re
+from collections.abc import Callable
 from pathlib import Path
 from typing import Optional
 
@@ -29,6 +30,7 @@ def extract_cjk(
         filename_encoding: Optional[str] = None,
         password_encoding: Optional[str] = None,
         verbose: bool = True,
+        progress: Optional[Callable[[int, int, str], None]] = None,
 ) -> tuple[bool, Optional[str]]:
     archive_path = Path(archive_path)
     if not archive_path.exists():
@@ -46,4 +48,5 @@ def extract_cjk(
         filename_encoding=filename_encoding,
         password_encoding=password_encoding,
         verbose=verbose,
+        progress=progress,
     )

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from pathlib import Path
 from typing import Optional
 
@@ -45,7 +46,7 @@ class SevenZipHandler(ArchiveHandler):
                 pass
         return result
 
-    def _try_extract(self, *args, **kwargs):
+    def _try_extract(self, *args, progress=None, **kwargs):
         raise NotImplementedError("Use extract() directly for 7z archives.")
 
     def _list_names(self, *args, **kwargs):
@@ -60,6 +61,7 @@ class SevenZipHandler(ArchiveHandler):
             filename_encoding: Optional[str] = None,
             password_encoding: Optional[str] = None,
             verbose: bool = True,
+            progress: Optional[Callable[[int, int, str], None]] = None,
     ) -> tuple[bool, Optional[str]]:
         # 7z stores filenames in UTF-16; filename_encoding is intentionally ignored.
         py7zr = self._import()

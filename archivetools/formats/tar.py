@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import tarfile
+from collections.abc import Callable
 from pathlib import Path
 from typing import Optional
 
@@ -24,6 +25,7 @@ class TarHandler(ArchiveHandler):
             filename_encoding: Optional[str] = None,
             password_encoding: Optional[str] = None,
             verbose: bool = True,
+            progress: Optional[Callable[[int, int, str], None]] = None,
     ) -> tuple[bool, Optional[str]]:
         if password:
             raise TypeError(
@@ -36,7 +38,12 @@ class TarHandler(ArchiveHandler):
             log.info("Output   : %s", output_dir)
         try:
             with tarfile.open(archive_path) as tf:
-                tf.extractall(path=output_dir)
+                members = tf.getmembers()
+                total = len(members)
+                for i, member in enumerate(members):
+                    tf.extract(member, path=output_dir)
+                    if progress:
+                        progress(i + 1, total, member.name)
             if verbose:
                 log.info("✓ TAR extracted successfully.")
             return True, None
@@ -108,7 +115,7 @@ class TarHandler(ArchiveHandler):
         except Exception:  # noqa: BLE001
             return super().get_info(archive_path)
 
-    def _try_extract(self, *_):
+    def _try_extract(self, *_, progress=None):
         raise NotImplementedError("TarHandler uses extract() directly.")
 
     def _list_names(self, *_):

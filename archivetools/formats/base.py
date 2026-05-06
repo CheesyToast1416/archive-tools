@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
@@ -55,6 +56,7 @@ class ArchiveHandler(ABC):
             filename_encoding: Optional[str] = None,
             password_encoding: Optional[str] = None,
             verbose: bool = True,
+            progress: Optional[Callable[[int, int, str], None]] = None,
     ) -> tuple[bool, Optional[str]]:
         """
         Try every CJK encoding for *password* and extract *archive_path*
@@ -81,7 +83,8 @@ class ArchiveHandler(ABC):
             if verbose:
                 log.info("  → trying %-12s  bytes: %s", enc, pwd_bytes.hex(" "))
             try:
-                if self._try_extract(archive_path, pwd_bytes, output_dir, filename_encoding):
+                if self._try_extract(archive_path, pwd_bytes, output_dir, filename_encoding,
+                                     progress=progress):
                     if verbose:
                         log.info("✓ Success with encoding: %s", enc)
                     return True, enc
@@ -148,6 +151,7 @@ class ArchiveHandler(ABC):
             pwd_bytes: bytes,
             output_dir: Path,
             filename_encoding: Optional[str],
+            progress: Optional[Callable[[int, int, str], None]] = None,
     ) -> bool:
         pass
 

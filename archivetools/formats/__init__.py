@@ -41,6 +41,41 @@ FORMAT_REGISTRY: dict[str, type[ArchiveHandler]] = {
 }
 
 
+_MAGIC: list[tuple[bytes, type[ArchiveHandler]]] = [
+    (b"PK\x03\x04",              ZipHandler),
+    (b"PK\x05\x06",              ZipHandler),   # empty ZIP
+    (b"Rar!\x1a\x07\x01\x00",   RarHandler),   # RAR5 (check before RAR4)
+    (b"Rar!\x1a\x07\x00",       RarHandler),   # RAR4
+    (b"7z\xbc\xaf\x27\x1c",     SevenZipHandler),
+    (b"\x1f\x8b",               TarHandler),   # gzip → probably .tar.gz
+    (b"BZh",                    TarHandler),   # bzip2 → probably .tar.bz2
+    (b"\xfd7zXZ\x00",           TarHandler),   # xz → probably .tar.xz
+]
+_MAGIC_READ_SIZE = 8
+
+
+def _detect_by_magic(path: Path) -> ArchiveHandler | None:
+    try:
+        header = path.read_bytes()[:_MAGIC_READ_SIZE]
+    except OSError:
+        return None
+    for magic, cls in _MAGIC:
+        if header.startswith(magic):
+            handler = cls()
+            if isinstance(handler, ZipHandler) and _sniff_zip_aes(path):
+                return ZipHandlerAES()
+            return handler
+    # Plain TAR: magic is at offset 257; handle last to avoid reading too much here
+    try:
+        with open(path, "rb") as fh:
+            fh.seek(257)
+            if fh.read(5) in (b"ustar", b"ustar"):
+                return TarHandler()
+    except OSError:
+        pass
+    return None
+
+
 def detect_handler(archive_path: Path) -> tuple[ArchiveHandler, Path]:
     """
     Return ``(handler, canonical_path)`` for *archive_path*.
@@ -95,5 +130,11 @@ def detect_handler(archive_path: Path) -> tuple[ArchiveHandler, Path]:
         return RarHandler(), archive_path
     if suffix == ".7z":
         return SevenZipHandler(), archive_path
+
+    # ── magic-byte fallback (handles files with wrong/missing extension) ─────────
+    handler = _detect_by_magic(archive_path)
+    if handler:
+        log.info("Format detected by magic bytes (extension was %r).", suffix or "(none)")
+        return handler, archive_path
 
     raise ValueError(f"Unsupported archive format: '{suffix}'")

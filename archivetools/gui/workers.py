@@ -67,6 +67,7 @@ class ExtractionWorker(_BaseWorker):
     """Calls extract_cjk() in a background thread and emits results via signals."""
 
     result = Signal(bool, str)
+    file_progress = Signal(int, int, str)  # current, total, filename
 
     def __init__(
             self,
@@ -92,6 +93,7 @@ class ExtractionWorker(_BaseWorker):
                 self._output_dir,
                 filename_encoding=self._filename_encoding,
                 password_encoding=self._password_encoding,
+                progress=lambda c, t, f: self.file_progress.emit(c, t, f),
             )
             self.result.emit(ok, enc or "")
         except Exception as exc:  # noqa: BLE001

@@ -251,6 +251,7 @@ class ExtractPanel(QWidget):
         worker.result.connect(self._on_extract_finished)
         worker.error.connect(self._on_extract_error)
         worker.log_message.connect(self._log)
+        worker.file_progress.connect(self._on_file_progress)
         self._start_worker(worker)
 
     def _start_worker(self, worker: _AnyWorker) -> None:
@@ -295,6 +296,12 @@ class ExtractPanel(QWidget):
         self._set_busy(False)
         self._log(f"✗ Error: {msg}")
         self.status_changed.emit("Error")
+
+    def _on_file_progress(self, current: int, total: int, filename: str) -> None:
+        if total > 0:
+            self._progress_bar.setRange(0, total)
+            self._progress_bar.setValue(current)
+            self.status_changed.emit(f"Extracting {current}/{total}: {filename}")
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 

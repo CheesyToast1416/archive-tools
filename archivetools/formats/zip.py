@@ -5,6 +5,7 @@ import os
 import shutil
 import tempfile
 import zipfile
+from collections.abc import Callable
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator, Optional
@@ -37,12 +38,17 @@ class ZipHandler(ArchiveHandler):
             pwd_bytes: bytes,
             output_dir: Path,
             filename_encoding: Optional[str],
+            progress: Optional[Callable[[int, int, str], None]] = None,
     ) -> bool:
         try:
             with zipfile.ZipFile(archive_path) as zf:
-                for info in zf.infolist():
+                infos = zf.infolist()
+                total = len(infos)
+                for i, info in enumerate(infos):
                     self._fix_zipinfo_filename(info, filename_encoding)
                     zf.extract(info, path=output_dir, pwd=pwd_bytes)
+                    if progress:
+                        progress(i + 1, total, info.filename)
             return True
         except RuntimeError as exc:
             msg = str(exc).lower()
@@ -147,12 +153,17 @@ class ZipHandlerAES(ZipHandler):
             pwd_bytes: bytes,
             output_dir: Path,
             filename_encoding: Optional[str],
+            progress: Optional[Callable[[int, int, str], None]] = None,
     ) -> bool:
         try:
             with self._open(archive_path) as zf:
-                for info in zf.infolist():
+                infos = zf.infolist()
+                total = len(infos)
+                for i, info in enumerate(infos):
                     self._fix_zipinfo_filename(info, filename_encoding)
                     zf.extract(info, path=output_dir, pwd=pwd_bytes)
+                    if progress:
+                        progress(i + 1, total, info.filename)
             return True
         except RuntimeError as exc:
             if "password" in str(exc).lower():
@@ -262,6 +273,7 @@ class SplitZipHandler(ZipHandler):
             filename_encoding: Optional[str] = None,
             password_encoding: Optional[str] = None,
             verbose: bool = True,
+            progress: Optional[Callable[[int, int, str], None]] = None,
     ) -> tuple[bool, Optional[str]]:
         if verbose:
             log.info("Split ZIP  : assembling %d parts into temp file…", len(self._parts))
@@ -273,6 +285,7 @@ class SplitZipHandler(ZipHandler):
                 filename_encoding=filename_encoding,
                 password_encoding=password_encoding,
                 verbose=verbose,
+                progress=progress,
             )
 
     def list_contents(

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from pathlib import Path
 from typing import Optional
 
@@ -31,12 +32,18 @@ class RarHandler(ArchiveHandler):
             pwd_bytes: bytes,
             output_dir: Path,
             filename_encoding: Optional[str],
+            progress: Optional[Callable[[int, int, str], None]] = None,
     ) -> bool:
         rf = self._import()
         kwargs = {"charset": filename_encoding} if filename_encoding else {}
         try:
             with rf.RarFile(str(archive_path), **kwargs) as rar:
-                rar.extractall(path=str(output_dir), pwd=pwd_bytes)
+                infos = rar.infolist()
+                total = len(infos)
+                for i, info in enumerate(infos):
+                    rar.extract(info, path=str(output_dir), pwd=pwd_bytes)
+                    if progress:
+                        progress(i + 1, total, info.filename)
             return True
         except rf.BadRarPassword:
             return False
