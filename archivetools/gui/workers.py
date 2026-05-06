@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
+from pathlib import Path
 
 from PySide6.QtCore import QThread, Signal
 
@@ -246,3 +247,67 @@ class CreateWorker(_BaseWorker):
             self.error.emit(str(exc))
         finally:
             self._remove_log_handler(handler)
+
+
+class BatchExtractionWorker(_BaseWorker):
+    """Extracts a list of archives sequentially, emitting per-archive status signals."""
+
+    archive_started = Signal(int)  # queue index
+    archive_done = Signal(int, bool, str)  # index, ok, detail_message
+    file_progress = Signal(int, int, str)
+    bytes_progress = Signal(int, int)
+    result = Signal(int, int)  # archives_ok, archives_failed
+
+    def __init__(
+        self,
+        archives: Sequence[str],
+        output_dir: str,
+        password: str,
+        filename_encoding: str | None,
+        password_encoding: str | None = None,
+    ) -> None:
+        super().__init__()
+        self._archives = list(archives)
+        self._output_dir = output_dir or None
+        self._password = password
+        self._filename_encoding = filename_encoding
+        self._password_encoding = password_encoding
+
+    def run(self) -> None:
+        handler = self._install_log_handler()
+        ok_count = 0
+        fail_count = 0
+        try:
+            for i, archive_path in enumerate(self._archives):
+                self.archive_started.emit(i)
+                try:
+                    dest = self._dest_for(archive_path)
+                    ok, enc = extract_cjk(
+                        archive_path,
+                        self._password,
+                        dest,
+                        filename_encoding=self._filename_encoding,
+                        password_encoding=self._password_encoding,
+                        progress=lambda c, t, f: self.file_progress.emit(c, t, f),
+                        bytes_progress=lambda d, s: self.bytes_progress.emit(d, s),
+                    )
+                    if ok:
+                        ok_count += 1
+                        self.archive_done.emit(i, True, f"encoding: {enc or 'auto'}")
+                    else:
+                        fail_count += 1
+                        self.archive_done.emit(i, False, "extraction failed")
+                except Exception as exc:  # noqa: BLE001
+                    fail_count += 1
+                    self.archive_done.emit(i, False, str(exc))
+        finally:
+            self._remove_log_handler(handler)
+            self.result.emit(ok_count, fail_count)
+
+    def _dest_for(self, archive_path: str) -> str | None:
+        if not self._output_dir:
+            return None  # each archive extracts next to itself (default)
+        stem = Path(archive_path).stem
+        if stem.lower().endswith(".tar"):
+            stem = stem[:-4]
+        return str(Path(self._output_dir) / stem)
