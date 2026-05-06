@@ -4,14 +4,12 @@ import zipfile
 
 import pytest
 
-from archivetools.core import (
-    RarHandler,
-    SevenZipHandler,
-    ZipHandler,
-    _default_output_dir,
-    detect_handler,
-    password_candidates,
-)
+from archivetools.encoding.candidates import password_candidates
+from archivetools.formats import detect_handler
+from archivetools.formats.rar import RarHandler
+from archivetools.formats.sevenzip import SevenZipHandler
+from archivetools.formats.zip import ZipHandler
+from archivetools.operations.extract import _default_output_dir
 
 
 class TestPasswordCandidates:

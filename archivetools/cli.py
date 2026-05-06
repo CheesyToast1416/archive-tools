@@ -5,7 +5,7 @@ import getpass
 import logging
 import sys
 
-from archivetools.core import extract_cjk, list_cjk
+from archivetools.operations import extract_cjk, list_cjk
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(message)s")
 
@@ -14,7 +14,7 @@ def main() -> None:
     # ── Interactive Mode (no arguments) ──────────────────────────────────────
     if len(sys.argv) == 1:
         print("CJK Archive Password Fixer")
-        print("Supports: .zip  .rar  .7z")
+        print("Supports: .zip  .rar  .7z  .tar.*")
         print("=" * 44)
         archive = input("Archive path: ").strip()
         password = getpass.getpass("Password (Unicode): ")

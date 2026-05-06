@@ -5,10 +5,10 @@ from typing import Optional
 
 from PySide6.QtCore import QThread, Signal
 
-from archivetools.core import extract_cjk, list_cjk
+from archivetools.operations import extract_cjk, list_cjk
 from archivetools.gui.log_handler import GuiLogHandler
 
-_CORE_LOGGER = "archivetools.core"
+_CORE_LOGGER = "archivetools.formats"  # formats/* now owns the log output
 
 
 class _BaseWorker(QThread):
@@ -19,26 +19,27 @@ class _BaseWorker(QThread):
         handler = GuiLogHandler()
         handler.setFormatter(logging.Formatter("%(levelname)s  %(message)s"))
         handler.message.connect(self.log_message)
-        logging.getLogger(_CORE_LOGGER).addHandler(handler)
+        # Capture both formats and operations loggers
+        for name in (_CORE_LOGGER, "archivetools.operations"):
+            logging.getLogger(name).addHandler(handler)
         return handler
 
     def _remove_log_handler(self, handler: GuiLogHandler) -> None:
-        logging.getLogger(_CORE_LOGGER).removeHandler(handler)
+        for name in (_CORE_LOGGER, "archivetools.operations"):
+            logging.getLogger(name).removeHandler(handler)
 
 
 class ListWorker(_BaseWorker):
     """Calls list_cjk() in a background thread and emits results via signals."""
 
-    # Named 'result' (not 'finished') so QThread's built-in finished signal remains
-    # accessible for lifecycle management (deleteLater, etc.).
     result = Signal(bool, str, list)
 
     def __init__(
-        self,
-        archive_path: str,
-        password: str,
-        filename_encoding: Optional[str],
-        password_encoding: Optional[str] = None,
+            self,
+            archive_path: str,
+            password: str,
+            filename_encoding: Optional[str],
+            password_encoding: Optional[str] = None,
     ) -> None:
         super().__init__()
         self._archive_path = archive_path
@@ -66,12 +67,12 @@ class ExtractionWorker(_BaseWorker):
     result = Signal(bool, str)
 
     def __init__(
-        self,
-        archive_path: str,
-        password: str,
-        output_dir: str,
-        filename_encoding: Optional[str],
-        password_encoding: Optional[str] = None,
+            self,
+            archive_path: str,
+            password: str,
+            output_dir: str,
+            filename_encoding: Optional[str],
+            password_encoding: Optional[str] = None,
     ) -> None:
         super().__init__()
         self._archive_path = archive_path
@@ -95,3 +96,12 @@ class ExtractionWorker(_BaseWorker):
             self.error.emit(str(exc))
         finally:
             self._remove_log_handler(handler)
+
+
+class CreateWorker(_BaseWorker):
+    """Stub — will run create_archive() once Phase A is implemented."""
+
+    result = Signal(bool)
+
+    def run(self) -> None:
+        self.error.emit("Archive creation is not yet implemented.")

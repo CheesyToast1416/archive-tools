@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "archivetools"
-version = "0.1.0"
-description = "Extract CJK-encoded password-protected archives (ZIP, RAR, 7z)"
+version = "0.2.0"
+description = "Full-featured archive manager with CJK encoding support (ZIP, RAR, 7z, TAR)"
 requires-python = ">=3.11"
 dependencies = [
     "pyside6>=6.7",
@@ -13,6 +13,7 @@ dependencies = [
     "pyzipper",
     "pycryptodomex",
     "py7zr",
+    "charset-normalizer>=3.0",
 ]
 
 [project.scripts]
