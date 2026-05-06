@@ -23,12 +23,15 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from archivetools.encoding.detect import detect_rar_filename_encoding, detect_zip_filename_encoding
+from archivetools.encoding.detect import (
+    detect_rar_filename_encoding,
+    detect_zip_filename_encoding,
+)
 from archivetools.gui.widgets.archive_picker import ArchivePickerWidget
 from archivetools.gui.widgets.encoding_combo import EncodingComboBox
-from archivetools.gui.workers import ExtractionWorker, ListWorker
+from archivetools.gui.workers import ExtractionWorker, ListWorker, TestWorker
 
-_AnyWorker = Union[ListWorker, ExtractionWorker]
+_AnyWorker = Union[ListWorker, ExtractionWorker, TestWorker]
 
 _ARCHIVE_FILTER = (
     "Archives (*.zip *.rar *.7z *.z01 *.r00 *.001 *.tar *.tar.gz *.tgz "
@@ -170,11 +173,23 @@ class ExtractPanel(QWidget):
         layout.addWidget(self._contents_tree)
         return box
 
-    def _build_extract_button(self) -> QPushButton:
+    def _build_extract_button(self) -> QWidget:
+        row = QWidget()
+        layout = QHBoxLayout(row)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
+
+        self._test_btn = QPushButton("Test Archive")
+        self._test_btn.setEnabled(False)
+        self._test_btn.clicked.connect(self._start_test)
+
         self._extract_btn = QPushButton("Extract")
         self._extract_btn.setEnabled(False)
         self._extract_btn.clicked.connect(self._start_extract)
-        return self._extract_btn
+
+        layout.addWidget(self._test_btn)
+        layout.addWidget(self._extract_btn)
+        return row
 
     def _build_log_group(self) -> QGroupBox:
         box = QGroupBox("Log")
@@ -193,6 +208,7 @@ class ExtractPanel(QWidget):
     def _on_archive_changed(self, text: str) -> None:
         has_text = bool(text.strip())
         self._preview_btn.setEnabled(has_text)
+        self._test_btn.setEnabled(has_text)
         self._preview_valid = False
         self._extract_btn.setEnabled(False)
         self._contents_tree.clear()
@@ -235,6 +251,23 @@ class ExtractPanel(QWidget):
         worker.log_message.connect(self._log)
         self._start_worker(worker)
 
+    def _start_test(self) -> None:
+        archive = self._archive_picker.path
+        if not archive:
+            return
+        self._log("─" * 60)
+        self._log("Testing archive integrity…")
+        worker = TestWorker(
+            archive,
+            self._password_edit.text(),
+            self._filename_encoding_combo.current_codec(),
+            self._pwd_encoding_combo.current_codec(),
+        )
+        worker.result.connect(self._on_test_finished)
+        worker.error.connect(self._on_test_error)
+        worker.log_message.connect(self._log)
+        self._start_worker(worker)
+
     def _start_extract(self) -> None:
         archive = self._archive_picker.path
         if not archive:
@@ -270,7 +303,9 @@ class ExtractPanel(QWidget):
             self._populate_tree(names)
             self._preview_valid = True
             self._extract_btn.setEnabled(True)
-            self._log(f"✓ Preview ready — {len(names)} entries  (encoding: {enc or 'auto'})")
+            self._log(
+                f"✓ Preview ready — {len(names)} entries  (encoding: {enc or 'auto'})"
+            )
             self.status_changed.emit(f"Preview: {len(names)} entries")
             # Run auto-detection for filename encoding
             self._run_filename_detection()
@@ -292,6 +327,24 @@ class ExtractPanel(QWidget):
             self._log("✗ Extraction failed — see log above for details.")
             self.status_changed.emit("Extraction failed")
 
+    def _on_test_finished(self, ok: bool, failed: list) -> None:
+        self._set_busy(False)
+        if ok:
+            self._log("✓ All entries passed integrity check.")
+            self.status_changed.emit("Test passed")
+        else:
+            self._log(f"✗ Test failed — {len(failed)} bad entries:")
+            for name in failed[:20]:
+                self._log(f"  • {name}")
+            if len(failed) > 20:
+                self._log(f"  … and {len(failed) - 20} more")
+            self.status_changed.emit(f"Test failed: {len(failed)} bad entries")
+
+    def _on_test_error(self, msg: str) -> None:
+        self._set_busy(False)
+        self._log(f"✗ Error: {msg}")
+        self.status_changed.emit("Error")
+
     def _on_extract_error(self, msg: str) -> None:
         self._set_busy(False)
         self._log(f"✗ Error: {msg}")
@@ -308,6 +361,7 @@ class ExtractPanel(QWidget):
     def _set_busy(self, busy: bool) -> None:
         has_archive = bool(self._archive_picker.path)
         self._preview_btn.setEnabled(not busy and has_archive)
+        self._test_btn.setEnabled(not busy and has_archive)
         self._extract_btn.setEnabled(not busy and self._preview_valid)
         if busy:
             self._progress_bar.setRange(0, 0)
@@ -336,6 +390,7 @@ class ExtractPanel(QWidget):
     def _run_filename_detection(self) -> None:
         """Run charset-normalizer on the archive and update the filename encoding combo."""
         from pathlib import Path
+
         archive = self._archive_picker.path
         if not archive:
             return
@@ -348,4 +403,6 @@ class ExtractPanel(QWidget):
             return
         if codec and confidence >= 0.5:
             self._filename_encoding_combo.set_detected(codec, confidence)
-            self._log(f"  filename encoding detected: {codec.upper()} ({confidence:.0%} confidence)")
+            self._log(
+                f"  filename encoding detected: {codec.upper()} ({confidence:.0%} confidence)"
+            )

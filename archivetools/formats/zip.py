@@ -21,7 +21,9 @@ class ZipHandler(ArchiveHandler):
     CAN_ENCRYPT_CREATE = False  # stdlib zipfile cannot encrypt; use ZipHandlerAES
 
     def _fix_zipinfo_filename(
-            self, info: zipfile.ZipInfo, filename_encoding: Optional[str],
+        self,
+        info: zipfile.ZipInfo,
+        filename_encoding: Optional[str],
     ) -> None:
         # Python's zipfile decodes non-UTF8 filenames as CP437.
         # Encode back to CP437 to get raw bytes, then decode with target codec.
@@ -33,12 +35,12 @@ class ZipHandler(ArchiveHandler):
                 pass
 
     def _try_extract(
-            self,
-            archive_path: Path,
-            pwd_bytes: bytes,
-            output_dir: Path,
-            filename_encoding: Optional[str],
-            progress: Optional[Callable[[int, int, str], None]] = None,
+        self,
+        archive_path: Path,
+        pwd_bytes: bytes,
+        output_dir: Path,
+        filename_encoding: Optional[str],
+        progress: Optional[Callable[[int, int, str], None]] = None,
     ) -> bool:
         try:
             with zipfile.ZipFile(archive_path) as zf:
@@ -64,10 +66,10 @@ class ZipHandler(ArchiveHandler):
             return False
 
     def _list_names(
-            self,
-            archive_path: Path,
-            pwd_bytes: bytes,
-            filename_encoding: Optional[str],
+        self,
+        archive_path: Path,
+        pwd_bytes: bytes,
+        filename_encoding: Optional[str],
     ) -> Optional[list[str]]:
         try:
             with zipfile.ZipFile(archive_path) as zf:
@@ -83,21 +85,54 @@ class ZipHandler(ArchiveHandler):
         except RuntimeError:
             return None
 
+    def test(
+        self,
+        archive_path: Path,
+        password: str,
+        *,
+        filename_encoding: Optional[str] = None,
+        password_encoding: Optional[str] = None,
+    ) -> tuple[bool, list[str]]:
+        candidates = self._resolve_candidates(password, password_encoding)
+        for pwd_bytes, _enc in candidates:
+            try:
+                with zipfile.ZipFile(archive_path) as zf:
+                    failed: list[str] = []
+                    wrong_pwd = False
+                    for info in zf.infolist():
+                        self._fix_zipinfo_filename(info, filename_encoding)
+                        try:
+                            zf.read(info, pwd=pwd_bytes)
+                        except zipfile.BadZipFile:
+                            failed.append(info.filename)
+                        except RuntimeError as exc:
+                            msg = str(exc).lower()
+                            if "password" in msg or "bad password" in msg:
+                                wrong_pwd = True
+                                break
+                            failed.append(info.filename)
+                    if not wrong_pwd:
+                        return len(failed) == 0, failed
+            except Exception:  # noqa: BLE001
+                continue
+        return False, ["Wrong password or could not open archive"]
+
     def create(
-            self,
-            output_path: Path,
-            files: list[Path],
-            *,
-            password: Optional[str] = None,
-            compression_level: int = 6,
-            filename_encoding: Optional[str] = None,
+        self,
+        output_path: Path,
+        files: list[Path],
+        *,
+        password: Optional[str] = None,
+        compression_level: int = 6,
+        filename_encoding: Optional[str] = None,
     ) -> bool:
         if password:
             raise ValueError(
                 "ZipHandler does not support encryption. Use ZipHandlerAES for AES-256."
             )
         with zipfile.ZipFile(
-            output_path, "w",
+            output_path,
+            "w",
             compression=zipfile.ZIP_DEFLATED,
             compresslevel=compression_level,
         ) as zf:
@@ -124,7 +159,9 @@ class ZipHandler(ArchiveHandler):
                     compressed_size=compressed,
                     uncompressed_size=uncompressed,
                     is_encrypted=is_enc,
-                    comment=zf.comment.decode("utf-8", errors="replace") if zf.comment else "",
+                    comment=zf.comment.decode("utf-8", errors="replace")
+                    if zf.comment
+                    else "",
                     archive_path=archive_path,
                 )
         except Exception:  # noqa: BLE001
@@ -148,12 +185,12 @@ class ZipHandlerAES(ZipHandler):
         return pyzipper.AESZipFile(archive_path)
 
     def _try_extract(
-            self,
-            archive_path: Path,
-            pwd_bytes: bytes,
-            output_dir: Path,
-            filename_encoding: Optional[str],
-            progress: Optional[Callable[[int, int, str], None]] = None,
+        self,
+        archive_path: Path,
+        pwd_bytes: bytes,
+        output_dir: Path,
+        filename_encoding: Optional[str],
+        progress: Optional[Callable[[int, int, str], None]] = None,
     ) -> bool:
         try:
             with self._open(archive_path) as zf:
@@ -175,10 +212,10 @@ class ZipHandlerAES(ZipHandler):
             raise
 
     def _list_names(
-            self,
-            archive_path: Path,
-            pwd_bytes: bytes,
-            filename_encoding: Optional[str],
+        self,
+        archive_path: Path,
+        pwd_bytes: bytes,
+        filename_encoding: Optional[str],
     ) -> Optional[list[str]]:
         try:
             with self._open(archive_path) as zf:
@@ -192,13 +229,13 @@ class ZipHandlerAES(ZipHandler):
             return None
 
     def create(
-            self,
-            output_path: Path,
-            files: list[Path],
-            *,
-            password: Optional[str] = None,
-            compression_level: int = 6,
-            filename_encoding: Optional[str] = None,
+        self,
+        output_path: Path,
+        files: list[Path],
+        *,
+        password: Optional[str] = None,
+        compression_level: int = 6,
+        filename_encoding: Optional[str] = None,
     ) -> bool:
         try:
             import pyzipper  # type: ignore[import]
@@ -206,7 +243,8 @@ class ZipHandlerAES(ZipHandler):
             raise ImportError("Run:  pip install pyzipper")
         pwd_bytes = password.encode("utf-8") if password else None
         with pyzipper.AESZipFile(
-            output_path, "w",
+            output_path,
+            "w",
             compression=pyzipper.ZIP_DEFLATED,
             encryption=pyzipper.WZ_AES,
         ) as zf:
@@ -265,23 +303,27 @@ class SplitZipHandler(ZipHandler):
         return ZipHandler()
 
     def extract(
-            self,
-            archive_path: Path,
-            password: str,
-            output_dir: Path,
-            *,
-            filename_encoding: Optional[str] = None,
-            password_encoding: Optional[str] = None,
-            verbose: bool = True,
-            progress: Optional[Callable[[int, int, str], None]] = None,
+        self,
+        archive_path: Path,
+        password: str,
+        output_dir: Path,
+        *,
+        filename_encoding: Optional[str] = None,
+        password_encoding: Optional[str] = None,
+        verbose: bool = True,
+        progress: Optional[Callable[[int, int, str], None]] = None,
     ) -> tuple[bool, Optional[str]]:
         if verbose:
-            log.info("Split ZIP  : assembling %d parts into temp file…", len(self._parts))
+            log.info(
+                "Split ZIP  : assembling %d parts into temp file…", len(self._parts)
+            )
             for p in self._parts:
                 log.info("  part : %s", p.name)
         with self._assembled() as tmp_path:
             return self._delegate(tmp_path).extract(
-                tmp_path, password, output_dir,
+                tmp_path,
+                password,
+                output_dir,
                 filename_encoding=filename_encoding,
                 password_encoding=password_encoding,
                 verbose=verbose,
@@ -289,13 +331,16 @@ class SplitZipHandler(ZipHandler):
             )
 
     def list_contents(
-            self,
-            archive_path: Path,
-            password: str,
-            filename_encoding: Optional[str] = None,
-            password_encoding: Optional[str] = None,
+        self,
+        archive_path: Path,
+        password: str,
+        filename_encoding: Optional[str] = None,
+        password_encoding: Optional[str] = None,
     ) -> tuple[bool, Optional[str], list[str]]:
         with self._assembled() as tmp_path:
             return self._delegate(tmp_path).list_contents(
-                tmp_path, password, filename_encoding, password_encoding,
+                tmp_path,
+                password,
+                filename_encoding,
+                password_encoding,
             )

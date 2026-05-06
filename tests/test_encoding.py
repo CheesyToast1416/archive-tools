@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import zipfile
 
-import pytest
-
 from archivetools.encoding.candidates import CJK_ENCODINGS, password_candidates
 from archivetools.encoding.detect import (
     detect_filename_encoding,

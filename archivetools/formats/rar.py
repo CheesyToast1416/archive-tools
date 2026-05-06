@@ -12,27 +12,27 @@ log = logging.getLogger(__name__)
 
 class RarHandler(ArchiveHandler):
     FORMAT_NAME = "RAR"
-    CAN_CREATE = False        # rarfile is read-only; RAR creation requires rar CLI
+    CAN_CREATE = False  # rarfile is read-only; RAR creation requires rar CLI
     CAN_ENCRYPT_CREATE = False
 
     @staticmethod
     def _import():
         try:
             import rarfile  # type: ignore[import]
+
             return rarfile
         except ImportError:
             raise ImportError(
-                "rarfile is required for RAR archives.\n"
-                "Run:  pip install rarfile"
+                "rarfile is required for RAR archives.\n" "Run:  pip install rarfile"
             )
 
     def _try_extract(
-            self,
-            archive_path: Path,
-            pwd_bytes: bytes,
-            output_dir: Path,
-            filename_encoding: Optional[str],
-            progress: Optional[Callable[[int, int, str], None]] = None,
+        self,
+        archive_path: Path,
+        pwd_bytes: bytes,
+        output_dir: Path,
+        filename_encoding: Optional[str],
+        progress: Optional[Callable[[int, int, str], None]] = None,
     ) -> bool:
         rf = self._import()
         kwargs = {"charset": filename_encoding} if filename_encoding else {}
@@ -51,10 +51,10 @@ class RarHandler(ArchiveHandler):
             return False
 
     def _list_names(
-            self,
-            archive_path: Path,
-            pwd_bytes: bytes,
-            filename_encoding: Optional[str],
+        self,
+        archive_path: Path,
+        pwd_bytes: bytes,
+        filename_encoding: Optional[str],
     ) -> Optional[list[str]]:
         rf = self._import()
         kwargs = {"charset": filename_encoding} if filename_encoding else {}
@@ -69,18 +69,40 @@ class RarHandler(ArchiveHandler):
         except (rf.BadRarPassword, rf.RarCRCError):
             return None
 
+    def test(
+        self,
+        archive_path: Path,
+        password: str,
+        *,
+        filename_encoding: Optional[str] = None,
+        password_encoding: Optional[str] = None,
+    ) -> tuple[bool, list[str]]:
+        rf = self._import()
+        candidates = self._resolve_candidates(password, password_encoding)
+        for pwd_bytes, _enc in candidates:
+            try:
+                with rf.RarFile(str(archive_path)) as rar:
+                    rar.setpassword(pwd_bytes)
+                    bad = rar.testrar()  # returns None on success or raises
+                return True, list(bad) if bad else []
+            except rf.BadRarPassword:
+                continue
+            except rf.RarCRCError as exc:
+                return False, [str(exc)]
+            except Exception:  # noqa: BLE001
+                continue
+        return False, ["Wrong password or could not open archive"]
+
     def get_info(self, archive_path: Path) -> ArchiveInfo:
         rf = self._import()
         try:
             with rf.RarFile(str(archive_path)) as rar:
                 infos = rar.infolist()
-                is_enc = any(getattr(i, "needs_password", lambda: False)() for i in infos)
-                compressed = sum(
-                    getattr(i, "compress_size", 0) or 0 for i in infos
+                is_enc = any(
+                    getattr(i, "needs_password", lambda: False)() for i in infos
                 )
-                uncompressed = sum(
-                    getattr(i, "file_size", 0) or 0 for i in infos
-                )
+                compressed = sum(getattr(i, "compress_size", 0) or 0 for i in infos)
+                uncompressed = sum(getattr(i, "file_size", 0) or 0 for i in infos)
                 return ArchiveInfo(
                     format_name=self.FORMAT_NAME,
                     file_count=len(infos),

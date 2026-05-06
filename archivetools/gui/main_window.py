@@ -3,6 +3,7 @@ from __future__ import annotations
 from PySide6.QtGui import QDragEnterEvent, QDropEvent
 from PySide6.QtWidgets import QMainWindow, QTabWidget
 
+from archivetools.gui.panels.convert_panel import ConvertPanel
 from archivetools.gui.panels.create_panel import CreatePanel
 from archivetools.gui.panels.extract_panel import ExtractPanel
 from archivetools.gui.panels.info_panel import InfoPanel
@@ -24,17 +25,20 @@ class MainWindow(QMainWindow):
         self.setAcceptDrops(True)
 
         self._extract_panel = ExtractPanel()
-        self._create_panel  = CreatePanel()
-        self._info_panel    = InfoPanel()
+        self._create_panel = CreatePanel()
+        self._convert_panel = ConvertPanel()
+        self._info_panel = InfoPanel()
 
         self._tabs = QTabWidget()
         self._tabs.addTab(self._extract_panel, "Extract")
-        self._tabs.addTab(self._create_panel,  "Create")
-        self._tabs.addTab(self._info_panel,    "Info")
+        self._tabs.addTab(self._create_panel, "Create")
+        self._tabs.addTab(self._convert_panel, "Convert")
+        self._tabs.addTab(self._info_panel, "Info")
         self.setCentralWidget(self._tabs)
 
         self._extract_panel.status_changed.connect(self.statusBar().showMessage)
         self._create_panel.status_changed.connect(self.statusBar().showMessage)
+        self._convert_panel.status_changed.connect(self.statusBar().showMessage)
         self._info_panel.status_changed.connect(self.statusBar().showMessage)
         self.statusBar().showMessage("Ready")
 
