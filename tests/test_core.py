@@ -14,10 +14,10 @@ from archivetools.operations.extract import _default_output_dir
 
 class TestPasswordCandidates:
     def test_ascii_single_result(self):
-        # ASCII encodes identically in all CJK codecs → deduplicated to one entry
+        # Pure ASCII → one candidate, labelled utf-8 (universal superset)
         results = password_candidates("hello")
         assert len(results) == 1
-        assert results[0][1] == "gbk"
+        assert results[0][1] == "utf-8"
 
     def test_gbk_is_first(self):
         # '密码' is a valid GBK string; GBK / gb2312 / gb18030 share the same bytes

@@ -12,9 +12,11 @@ from archivetools.encoding.detect import (
 
 class TestPasswordCandidates:
     def test_ascii_deduplicated(self):
+        # ASCII encodes identically in every charset — one candidate, labelled utf-8
         results = password_candidates("hello")
         assert len(results) == 1
-        assert results[0][1] == "gbk"
+        assert results[0][1] == "utf-8"
+        assert results[0][0] == b"hello"
 
     def test_gbk_first(self):
         results = password_candidates("密码")
