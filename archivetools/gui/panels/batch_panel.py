@@ -352,6 +352,11 @@ class BatchPanel(QWidget):
             and self._table.item(r, _COL_STATUS).text() in (_STATUS_OK, _STATUS_FAIL)
         )
         self._overall_lbl.setText(f"{done} / {n}")
+        # Trash immediately on success — don't wait for the whole batch to finish.
+        if ok and self._trash_after_batch.isChecked():
+            archive_item = self._table.item(index, _COL_ARCHIVE)
+            if archive_item:
+                self._trash_one(archive_item.text())
 
     def _on_file_progress(self, current: int, total: int, filename: str) -> None:
         if self._progress_dialog:
@@ -367,8 +372,6 @@ class BatchPanel(QWidget):
         self._overall_lbl.setText(f"{total} / {total}")
         self._log(f"✓ Batch complete — {ok_count} succeeded, {fail_count} failed.")
         self.status_changed.emit(f"Batch: {ok_count}/{total} succeeded")
-        if self._trash_after_batch.isChecked() and ok_count > 0:
-            self._trash_successful_archives()
 
     def _on_batch_error(self, msg: str) -> None:
         self._set_busy(False)
@@ -396,20 +399,13 @@ class BatchPanel(QWidget):
     def handle_drop(self, path: str) -> None:
         self._add_paths([path])
 
-    def _trash_successful_archives(self) -> None:
+    def _trash_one(self, path: str) -> None:
         from archivetools.utils.trash import move_to_trash
 
-        n = self._table.rowCount()
-        for r in range(n):
-            status_item = self._table.item(r, _COL_STATUS)
-            if status_item and status_item.text() == _STATUS_OK:
-                archive_item = self._table.item(r, _COL_ARCHIVE)
-                if archive_item:
-                    path = archive_item.text()
-                    if move_to_trash(path):
-                        self._log(f"  Moved to trash: {os.path.basename(path)}")
-                    else:
-                        self._log(f"  ⚠ Could not trash: {path}")
+        if move_to_trash(path):
+            self._log(f"  Moved to trash: {os.path.basename(path)}")
+        else:
+            self._log(f"  ⚠ Could not trash: {path}")
 
     def _set_busy(self, busy: bool) -> None:
         self._extract_btn.setEnabled(not busy)
