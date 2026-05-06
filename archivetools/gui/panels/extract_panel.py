@@ -48,6 +48,7 @@ class ExtractPanel(QWidget):
         super().__init__(parent)
         self._worker: _AnyWorker | None = None
         self._preview_valid = False
+        self._preview_names: list[str] = []  # kept for smart extraction
         self._progress_dialog: ExtractionProgressDialog | None = None
         self._build_ui()
 
@@ -210,6 +211,7 @@ class ExtractPanel(QWidget):
         self._preview_btn.setEnabled(has_text)
         self._test_btn.setEnabled(has_text)
         self._preview_valid = False
+        self._preview_names = []
         self._extract_btn.setEnabled(False)
         self._contents_tree.clear()
         self._filename_encoding_combo.reset_detected()
@@ -289,6 +291,7 @@ class ExtractPanel(QWidget):
             self._output_picker.path,
             self._filename_encoding_combo.current_codec(),
             self._pwd_encoding_combo.current_codec(),
+            names=self._preview_names or None,
         )
         worker.result.connect(self._on_extract_finished)
         worker.error.connect(self._on_extract_error)
@@ -321,12 +324,12 @@ class ExtractPanel(QWidget):
         if ok:
             self._populate_tree(names)
             self._preview_valid = True
+            self._preview_names = list(names)  # store for smart extraction
             self._extract_btn.setEnabled(True)
             self._log(
                 f"✓ Preview ready — {len(names)} entries  (encoding: {enc or 'auto'})"
             )
             self.status_changed.emit(f"Preview: {len(names)} entries")
-            # Run auto-detection for filename encoding
             self._run_filename_detection()
         else:
             self._log("✗ Could not read archive — check the password.")

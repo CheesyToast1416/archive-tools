@@ -85,6 +85,7 @@ class ExtractionWorker(_BaseWorker):
         output_dir: str,
         filename_encoding: str | None,
         password_encoding: str | None = None,
+        names: list[str] | None = None,
     ) -> None:
         super().__init__()
         self._archive_path = archive_path
@@ -92,6 +93,7 @@ class ExtractionWorker(_BaseWorker):
         self._output_dir = output_dir or None
         self._filename_encoding = filename_encoding
         self._password_encoding = password_encoding
+        self._names = names  # pre-fetched file list for smart extraction
 
     def run(self) -> None:
         handler = self._install_log_handler()
@@ -104,6 +106,8 @@ class ExtractionWorker(_BaseWorker):
                 password_encoding=self._password_encoding,
                 progress=lambda c, t, f: self.file_progress.emit(c, t, f),
                 bytes_progress=lambda d, s: self.bytes_progress.emit(d, s),
+                names=self._names,
+                smart=True,
             )
             self.result.emit(ok, enc or "")
         except Exception as exc:  # noqa: BLE001
