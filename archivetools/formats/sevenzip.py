@@ -97,6 +97,29 @@ class SevenZipHandler(ArchiveHandler):
                 continue
         return False, None, []
 
+    def create(
+            self,
+            output_path: Path,
+            files: list[Path],
+            *,
+            password: Optional[str] = None,
+            compression_level: int = 6,
+            filename_encoding: Optional[str] = None,
+    ) -> bool:
+        py7zr = self._import()
+        kwargs: dict = {}
+        if password:
+            kwargs["password"] = password
+        with py7zr.SevenZipFile(str(output_path), mode="w", **kwargs) as sz:
+            for f in files:
+                f = Path(f)
+                if f.is_dir():
+                    sz.writeall(str(f), f.name)
+                elif f.is_file():
+                    sz.write(str(f), f.name)
+        log.info("✓ Created 7z: %s", output_path)
+        return True
+
     def get_info(self, archive_path: Path) -> ArchiveInfo:
         py7zr = self._import()
         try:

@@ -34,6 +34,8 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self._tabs)
 
         self._extract_panel.status_changed.connect(self.statusBar().showMessage)
+        self._create_panel.status_changed.connect(self.statusBar().showMessage)
+        self._info_panel.status_changed.connect(self.statusBar().showMessage)
         self.statusBar().showMessage("Ready")
 
     # ── Drag-and-drop — delegate to the active panel ──────────────────────────
@@ -48,6 +50,6 @@ class MainWindow(QMainWindow):
     def dropEvent(self, event: QDropEvent) -> None:
         path = event.mimeData().urls()[0].toLocalFile()
         active = self._tabs.currentWidget()
-        if isinstance(active, ExtractPanel):
-            active._archive_picker.set_path(path)
+        if hasattr(active, "handle_drop"):
+            active.handle_drop(path)
         event.acceptProposedAction()

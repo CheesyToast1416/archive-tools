@@ -323,6 +323,9 @@ class ExtractPanel(QWidget):
             item.setIcon(0, dir_icon if is_dir else file_icon)
             self._contents_tree.addTopLevelItem(item)
 
+    def handle_drop(self, path: str) -> None:
+        self._archive_picker.set_path(path)
+
     def _run_filename_detection(self) -> None:
         """Run charset-normalizer on the archive and update the filename encoding combo."""
         archive = self._archive_picker.path

@@ -77,6 +77,34 @@ class ZipHandler(ArchiveHandler):
         except RuntimeError:
             return None
 
+    def create(
+            self,
+            output_path: Path,
+            files: list[Path],
+            *,
+            password: Optional[str] = None,
+            compression_level: int = 6,
+            filename_encoding: Optional[str] = None,
+    ) -> bool:
+        if password:
+            raise ValueError(
+                "ZipHandler does not support encryption. Use ZipHandlerAES for AES-256."
+            )
+        with zipfile.ZipFile(
+            output_path, "w",
+            compression=zipfile.ZIP_DEFLATED,
+            compresslevel=compression_level,
+        ) as zf:
+            for f in files:
+                f = Path(f)
+                if f.is_dir():
+                    for child in sorted(f.rglob("*")):
+                        zf.write(child, child.relative_to(f.parent))
+                elif f.is_file():
+                    zf.write(f, f.name)
+        log.info("✓ Created ZIP: %s", output_path)
+        return True
+
     def get_info(self, archive_path: Path) -> ArchiveInfo:
         try:
             with zipfile.ZipFile(archive_path) as zf:
@@ -151,6 +179,37 @@ class ZipHandlerAES(ZipHandler):
                 return names
         except Exception:  # noqa: BLE001
             return None
+
+    def create(
+            self,
+            output_path: Path,
+            files: list[Path],
+            *,
+            password: Optional[str] = None,
+            compression_level: int = 6,
+            filename_encoding: Optional[str] = None,
+    ) -> bool:
+        try:
+            import pyzipper  # type: ignore[import]
+        except ImportError:
+            raise ImportError("Run:  pip install pyzipper")
+        pwd_bytes = password.encode("utf-8") if password else None
+        with pyzipper.AESZipFile(
+            output_path, "w",
+            compression=pyzipper.ZIP_DEFLATED,
+            encryption=pyzipper.WZ_AES,
+        ) as zf:
+            if pwd_bytes:
+                zf.setpassword(pwd_bytes)
+            for f in files:
+                f = Path(f)
+                if f.is_dir():
+                    for child in sorted(f.rglob("*")):
+                        zf.write(child, child.relative_to(f.parent))
+                elif f.is_file():
+                    zf.write(f, f.name)
+        log.info("✓ Created ZIP (AES-256): %s", output_path)
+        return True
 
 
 def _sniff_zip_aes(path: Path) -> bool:

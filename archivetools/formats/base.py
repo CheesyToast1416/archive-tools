@@ -124,6 +124,21 @@ class ArchiveHandler(ABC):
             archive_path=archive_path,
         )
 
+    # ── Create ────────────────────────────────────────────────────────────────
+
+    def create(
+            self,
+            output_path: Path,
+            files: list[Path],
+            *,
+            password: Optional[str] = None,
+            compression_level: int = 6,
+            filename_encoding: Optional[str] = None,
+    ) -> bool:
+        raise NotImplementedError(
+            f"{self.FORMAT_NAME} handler does not support archive creation."
+        )
+
     # ── Abstract primitives ───────────────────────────────────────────────────
 
     @abstractmethod

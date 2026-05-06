@@ -1,9 +1,22 @@
 from __future__ import annotations
 
+import logging
 import os
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Optional
+
+log = logging.getLogger(__name__)
+
+_FORMAT_EXTENSIONS = {
+    "zip":     ".zip",
+    "zip-aes": ".zip",
+    "7z":      ".7z",
+    "tar":     ".tar",
+    "tar.gz":  ".tar.gz",
+    "tar.bz2": ".tar.bz2",
+    "tar.xz":  ".tar.xz",
+}
 
 
 def create_archive(
@@ -16,16 +29,57 @@ def create_archive(
         filename_encoding: Optional[str] = None,
 ) -> bool:
     """
-    Create an archive from *files* at *output_path*.
+    Create an archive at *output_path* containing *files*.
 
-    Supported formats (planned): "zip", "zip-aes", "7z", "tar",
-    "tar.gz", "tar.bz2", "tar.xz".
-
-    .. note::
-        Archive creation is not yet implemented.
-        This function establishes the API contract for the upcoming release.
+    Parameters
+    ----------
+    output_path:
+        Destination file path.  Extension should match the chosen format.
+    files:
+        Files and/or directories to include.  Directories are added recursively.
+    format:
+        One of: ``"zip"``, ``"zip-aes"``, ``"7z"``,
+        ``"tar"``, ``"tar.gz"``, ``"tar.bz2"``, ``"tar.xz"``.
+    password:
+        Optional password.  Only meaningful for ``"zip-aes"`` and ``"7z"``.
+    compression_level:
+        0–9 (0 = store, 9 = maximum).  Ignored by formats that do not use it.
+    filename_encoding:
+        Reserved for future use; currently unused.
     """
-    raise NotImplementedError(
-        "Archive creation is planned for the next release.\n"
-        "Supported formats will be: ZIP, ZIP-AES, 7z, TAR family."
+    fmt = format.lower()
+    if fmt not in _FORMAT_EXTENSIONS:
+        raise ValueError(
+            f"Unsupported format {format!r}. "
+            f"Choose from: {', '.join(_FORMAT_EXTENSIONS)}"
+        )
+
+    output_path = Path(output_path)
+    file_paths = [Path(f) for f in files]
+
+    log.info("Creating %s archive: %s", fmt.upper(), output_path)
+    log.info("Items: %d", len(file_paths))
+
+    handler = _get_handler(fmt)
+    return handler.create(
+        output_path,
+        file_paths,
+        password=password,
+        compression_level=compression_level,
+        filename_encoding=filename_encoding,
     )
+
+
+def _get_handler(fmt: str):
+    if fmt == "zip":
+        from archivetools.formats.zip import ZipHandler
+        return ZipHandler()
+    if fmt == "zip-aes":
+        from archivetools.formats.zip import ZipHandlerAES
+        return ZipHandlerAES()
+    if fmt == "7z":
+        from archivetools.formats.sevenzip import SevenZipHandler
+        return SevenZipHandler()
+    # tar family
+    from archivetools.formats.tar import TarHandler
+    return TarHandler()

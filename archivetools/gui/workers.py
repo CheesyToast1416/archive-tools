@@ -5,7 +5,9 @@ from typing import Optional
 
 from PySide6.QtCore import QThread, Signal
 
-from archivetools.operations import extract_cjk, list_cjk
+from typing import Sequence
+
+from archivetools.operations import create_archive, extract_cjk, get_archive_info, list_cjk
 from archivetools.gui.log_handler import GuiLogHandler
 
 _CORE_LOGGER = "archivetools.formats"  # formats/* now owns the log output
@@ -98,10 +100,61 @@ class ExtractionWorker(_BaseWorker):
             self._remove_log_handler(handler)
 
 
+class InfoWorker(_BaseWorker):
+    """Calls get_archive_info() in a background thread and emits result."""
+
+    result = Signal(object)  # ArchiveInfo on success
+
+    def __init__(self, archive_path: str) -> None:
+        super().__init__()
+        self._archive_path = archive_path
+
+    def run(self) -> None:
+        handler = self._install_log_handler()
+        try:
+            info = get_archive_info(self._archive_path)
+            self.result.emit(info)
+        except Exception as exc:  # noqa: BLE001
+            self.error.emit(str(exc))
+        finally:
+            self._remove_log_handler(handler)
+
+
 class CreateWorker(_BaseWorker):
-    """Stub — will run create_archive() once Phase A is implemented."""
+    """Runs create_archive() in a background thread."""
 
     result = Signal(bool)
 
+    def __init__(
+            self,
+            output_path: str,
+            files: Sequence[str],
+            format: str,
+            password: str,
+            compression_level: int,
+            filename_encoding: Optional[str] = None,
+    ) -> None:
+        super().__init__()
+        self._output_path = output_path
+        self._files = list(files)
+        self._format = format
+        self._password = password or None
+        self._compression_level = compression_level
+        self._filename_encoding = filename_encoding
+
     def run(self) -> None:
-        self.error.emit("Archive creation is not yet implemented.")
+        handler = self._install_log_handler()
+        try:
+            ok = create_archive(
+                self._output_path,
+                self._files,
+                format=self._format,
+                password=self._password,
+                compression_level=self._compression_level,
+                filename_encoding=self._filename_encoding,
+            )
+            self.result.emit(ok)
+        except Exception as exc:  # noqa: BLE001
+            self.error.emit(str(exc))
+        finally:
+            self._remove_log_handler(handler)

@@ -59,6 +59,39 @@ class TarHandler(ArchiveHandler):
         except Exception:  # noqa: BLE001
             return False, None, []
 
+    @staticmethod
+    def _write_mode(output_path: Path) -> str:
+        name = output_path.name.lower()
+        if name.endswith((".tar.gz", ".tgz")):
+            return "w:gz"
+        if name.endswith(".tar.bz2"):
+            return "w:bz2"
+        if name.endswith(".tar.xz"):
+            return "w:xz"
+        return "w"
+
+    def create(
+            self,
+            output_path: Path,
+            files: list[Path],
+            *,
+            password: Optional[str] = None,
+            compression_level: int = 6,
+            filename_encoding: Optional[str] = None,
+    ) -> bool:
+        if password:
+            raise TypeError(
+                "TAR archives do not support encryption. "
+                "Use ZIP-AES or 7z for encrypted archives."
+            )
+        mode = self._write_mode(output_path)
+        with tarfile.open(output_path, mode) as tf:
+            for f in files:
+                f = Path(f)
+                tf.add(str(f), arcname=f.name)
+        log.info("✓ Created TAR (%s): %s", mode, output_path)
+        return True
+
     def get_info(self, archive_path: Path) -> ArchiveInfo:
         try:
             with tarfile.open(archive_path) as tf:
