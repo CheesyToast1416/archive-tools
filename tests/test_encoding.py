@@ -5,7 +5,11 @@ import zipfile
 import pytest
 
 from archivetools.encoding.candidates import CJK_ENCODINGS, password_candidates
-from archivetools.encoding.detect import detect_filename_encoding, detect_zip_filename_encoding
+from archivetools.encoding.detect import (
+    detect_filename_encoding,
+    detect_rar_filename_encoding,
+    detect_zip_filename_encoding,
+)
 
 
 class TestPasswordCandidates:
@@ -71,3 +75,15 @@ class TestDetectZipFilenameEncoding:
         codec, conf = detect_zip_filename_encoding(tmp_path / "missing.zip")
         assert codec is None
         assert conf == 0.0
+
+
+class TestDetectRarFilenameEncoding:
+    def test_nonexistent_file(self, tmp_path):
+        codec, conf = detect_rar_filename_encoding(tmp_path / "missing.rar")
+        assert codec is None
+        assert conf == 0.0
+
+    def test_returns_float_confidence(self, tmp_path):
+        # Function must return a float confidence even if detection finds nothing
+        codec, conf = detect_rar_filename_encoding(tmp_path / "missing.rar")
+        assert isinstance(conf, float)

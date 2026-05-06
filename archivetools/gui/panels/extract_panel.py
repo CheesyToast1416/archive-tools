@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from archivetools.encoding.detect import detect_zip_filename_encoding
+from archivetools.encoding.detect import detect_rar_filename_encoding, detect_zip_filename_encoding
 from archivetools.gui.widgets.archive_picker import ArchivePickerWidget
 from archivetools.gui.widgets.encoding_combo import EncodingComboBox
 from archivetools.gui.workers import ExtractionWorker, ListWorker
@@ -335,14 +335,17 @@ class ExtractPanel(QWidget):
 
     def _run_filename_detection(self) -> None:
         """Run charset-normalizer on the archive and update the filename encoding combo."""
+        from pathlib import Path
         archive = self._archive_picker.path
         if not archive:
             return
-        # Only meaningful for ZIP (RAR/7z store encoding info in the header)
-        if not archive.lower().endswith((".zip", ".z01")):
+        low = archive.lower()
+        if low.endswith((".zip", ".z01")):
+            codec, confidence = detect_zip_filename_encoding(Path(archive))
+        elif low.endswith((".rar", ".r00", ".r01")):
+            codec, confidence = detect_rar_filename_encoding(Path(archive))
+        else:
             return
-        from pathlib import Path
-        codec, confidence = detect_zip_filename_encoding(Path(archive))
         if codec and confidence >= 0.5:
             self._filename_encoding_combo.set_detected(codec, confidence)
             self._log(f"  filename encoding detected: {codec.upper()} ({confidence:.0%} confidence)")
