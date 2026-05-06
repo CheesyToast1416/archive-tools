@@ -3,6 +3,7 @@ from __future__ import annotations
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFontDatabase
 from PySide6.QtWidgets import (
+    QCheckBox,
     QFileDialog,
     QFormLayout,
     QGroupBox,
@@ -147,6 +148,11 @@ class ExtractPanel(QWidget):
         self._output_picker.findChild(QPushButton).clicked.disconnect()
         self._output_picker.findChild(QPushButton).clicked.connect(self._browse_output)
         form.addRow("Output directory:", self._output_picker)
+
+        self._trash_after_extract = QCheckBox(
+            "Move archive to trash after successful extraction"
+        )
+        form.addRow("", self._trash_after_extract)
 
         return box
 
@@ -350,6 +356,8 @@ class ExtractPanel(QWidget):
         if ok:
             self._log(f"✓ Extraction complete  (encoding: {enc or 'auto'})")
             self.status_changed.emit("Extraction complete")
+            if self._trash_after_extract.isChecked():
+                self._trash_archive()
         else:
             self._log("✗ Extraction failed — see log above for details.")
             self.status_changed.emit("Extraction failed")
@@ -416,6 +424,17 @@ class ExtractPanel(QWidget):
 
     def handle_drop(self, path: str) -> None:
         self._archive_picker.set_path(path)
+
+    def _trash_archive(self) -> None:
+        from archivetools.utils.trash import move_to_trash
+
+        path = self._archive_picker.path
+        if not path:
+            return
+        if move_to_trash(path):
+            self._log(f"  Moved to trash: {path}")
+        else:
+            self._log(f"  ⚠ Could not move to trash: {path}")
 
     def _run_filename_detection(self) -> None:
         """Run charset-normalizer on the archive; update the filename encoding combo."""

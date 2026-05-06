@@ -15,6 +15,7 @@ dependencies = [
     "pycryptodomex",
     "py7zr",
     "charset-normalizer>=3.0",
+    "send2trash",
 ]
 
 [project.scripts]
@@ -66,7 +67,7 @@ ignore_missing_imports = true
 
 # Third-party libraries without stubs
 [[tool.mypy.overrides]]
-module = ["pyzipper", "rarfile", "py7zr", "charset_normalizer"]
+module = ["pyzipper", "rarfile", "py7zr", "charset_normalizer", "send2trash"]
 ignore_missing_imports = true
 
 # Test files: strict annotations are not required for tests

@@ -5,6 +5,7 @@ import os
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QDragEnterEvent, QDropEvent, QFontDatabase
 from PySide6.QtWidgets import (
+    QCheckBox,
     QFileDialog,
     QFormLayout,
     QGroupBox,
@@ -175,17 +176,26 @@ class BatchPanel(QWidget):
         return box
 
     def _build_run_row(self) -> QWidget:
+        container = QWidget()
+        outer = QVBoxLayout(container)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(4)
+
+        self._trash_after_batch = QCheckBox(
+            "Move archives to trash after successful extraction"
+        )
+        outer.addWidget(self._trash_after_batch)
+
         row = QWidget()
         layout = QHBoxLayout(row)
         layout.setContentsMargins(0, 0, 0, 0)
-
         self._overall_lbl = QLabel("")
         self._extract_btn = QPushButton("Extract All")
         self._extract_btn.clicked.connect(self._start_batch)
-
         layout.addWidget(self._overall_lbl, stretch=1)
         layout.addWidget(self._extract_btn)
-        return row
+        outer.addWidget(row)
+        return container
 
     def _build_log_group(self) -> QGroupBox:
         box = QGroupBox("Log")
@@ -339,6 +349,8 @@ class BatchPanel(QWidget):
         self._overall_lbl.setText(f"{total} / {total}")
         self._log(f"✓ Batch complete — {ok_count} succeeded, {fail_count} failed.")
         self.status_changed.emit(f"Batch: {ok_count}/{total} succeeded")
+        if self._trash_after_batch.isChecked() and ok_count > 0:
+            self._trash_successful_archives()
 
     def _on_batch_error(self, msg: str) -> None:
         self._set_busy(False)
@@ -355,6 +367,21 @@ class BatchPanel(QWidget):
 
     def handle_drop(self, path: str) -> None:
         self._add_paths([path])
+
+    def _trash_successful_archives(self) -> None:
+        from archivetools.utils.trash import move_to_trash
+
+        n = self._table.rowCount()
+        for r in range(n):
+            status_item = self._table.item(r, _COL_STATUS)
+            if status_item and status_item.text() == _STATUS_OK:
+                archive_item = self._table.item(r, _COL_ARCHIVE)
+                if archive_item:
+                    path = archive_item.text()
+                    if move_to_trash(path):
+                        self._log(f"  Moved to trash: {os.path.basename(path)}")
+                    else:
+                        self._log(f"  ⚠ Could not trash: {path}")
 
     def _set_busy(self, busy: bool) -> None:
         self._extract_btn.setEnabled(not busy)

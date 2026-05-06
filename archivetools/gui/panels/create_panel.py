@@ -3,6 +3,7 @@ from __future__ import annotations
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QDragEnterEvent, QDropEvent, QFontDatabase
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QFileDialog,
     QFormLayout,
@@ -101,6 +102,10 @@ class CreatePanel(QWidget):
         outer.addWidget(self._build_output_group())
         outer.addWidget(self._build_files_group(), stretch=2)
         outer.addWidget(self._build_options_group())
+        self._trash_after_create = QCheckBox(
+            "Move source files/folders to trash after successful creation"
+        )
+        outer.addWidget(self._trash_after_create)
         outer.addWidget(self._build_create_button())
         outer.addWidget(self._build_log_group(), stretch=1)
 
@@ -282,9 +287,24 @@ class CreatePanel(QWidget):
         if ok:
             self._log(f"✓ Archive created: {self._output_picker.path}")
             self.status_changed.emit("Archive created")
+            if self._trash_after_create.isChecked():
+                self._trash_sources()
         else:
             self._log("✗ Archive creation failed.")
             self.status_changed.emit("Creation failed")
+
+    def _trash_sources(self) -> None:
+        from archivetools.utils.trash import trash_paths
+
+        paths = [
+            self._file_list.item(i).text()
+            for i in range(self._file_list.count())
+            if self._file_list.item(i)
+        ]
+        ok_count, failed = trash_paths(paths)
+        self._log(f"  Moved {ok_count} item(s) to trash.")
+        for p in failed:
+            self._log(f"  ⚠ Could not trash: {p}")
 
     def _on_create_error(self, msg: str) -> None:
         self._set_busy(False)
