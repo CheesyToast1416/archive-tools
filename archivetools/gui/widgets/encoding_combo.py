@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Optional
-
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QComboBox
 
@@ -34,7 +32,7 @@ class EncodingComboBox(QComboBox):
             lambda _: self.encoding_changed.emit(self.current_codec() or "")
         )
 
-    def current_codec(self) -> Optional[str]:
+    def current_codec(self) -> str | None:
         """Return the selected codec string, or ``None`` for Auto-detect."""
         codec: str = self.currentData()
         return codec or None

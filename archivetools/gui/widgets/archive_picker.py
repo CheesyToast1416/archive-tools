@@ -16,11 +16,11 @@ class ArchivePickerWidget(QWidget):
     path_changed = Signal(str)
 
     def __init__(
-            self,
-            placeholder: str = "",
-            file_filter: str = "All files (*)",
-            save_mode: bool = False,
-            parent=None,
+        self,
+        placeholder: str = "",
+        file_filter: str = "All files (*)",
+        save_mode: bool = False,
+        parent=None,
     ) -> None:
         super().__init__(parent)
         self._file_filter = file_filter
@@ -53,9 +53,13 @@ class ArchivePickerWidget(QWidget):
 
     def _browse(self) -> None:
         if self._save_mode:
-            path, _ = QFileDialog.getSaveFileName(self, "Save Archive", "", self._file_filter)
+            path, _ = QFileDialog.getSaveFileName(
+                self, "Save Archive", "", self._file_filter
+            )
         else:
-            path, _ = QFileDialog.getOpenFileName(self, "Open Archive", "", self._file_filter)
+            path, _ = QFileDialog.getOpenFileName(
+                self, "Open Archive", "", self._file_filter
+            )
         if path:
             self.set_path(path)
 

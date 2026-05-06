@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from pathlib import Path
-from typing import Optional
+from typing import Any
 
 from archivetools.formats.base import ArchiveHandler, ArchiveInfo
 
@@ -16,14 +16,14 @@ class RarHandler(ArchiveHandler):
     CAN_ENCRYPT_CREATE = False
 
     @staticmethod
-    def _import():
+    def _import() -> Any:
         try:
             import rarfile  # type: ignore[import]
 
             return rarfile
         except ImportError:
             raise ImportError(
-                "rarfile is required for RAR archives.\n" "Run:  pip install rarfile"
+                "rarfile is required for RAR archives.\nRun:  pip install rarfile"
             )
 
     def _try_extract(
@@ -31,8 +31,9 @@ class RarHandler(ArchiveHandler):
         archive_path: Path,
         pwd_bytes: bytes,
         output_dir: Path,
-        filename_encoding: Optional[str],
-        progress: Optional[Callable[[int, int, str], None]] = None,
+        filename_encoding: str | None,
+        progress: Callable[[int, int, str], None] | None = None,
+        bytes_progress: Callable[[int, int], None] | None = None,
     ) -> bool:
         rf = self._import()
         kwargs = {"charset": filename_encoding} if filename_encoding else {}
@@ -54,8 +55,8 @@ class RarHandler(ArchiveHandler):
         self,
         archive_path: Path,
         pwd_bytes: bytes,
-        filename_encoding: Optional[str],
-    ) -> Optional[list[str]]:
+        filename_encoding: str | None,
+    ) -> list[str] | None:
         rf = self._import()
         kwargs = {"charset": filename_encoding} if filename_encoding else {}
         try:
@@ -65,7 +66,7 @@ class RarHandler(ArchiveHandler):
                     if info.needs_password():
                         rar.open(info, pwd=pwd_bytes).read(1)
                         break
-                return rar.namelist()
+                return list(rar.namelist())
         except (rf.BadRarPassword, rf.RarCRCError):
             return None
 
@@ -74,8 +75,8 @@ class RarHandler(ArchiveHandler):
         archive_path: Path,
         password: str,
         *,
-        filename_encoding: Optional[str] = None,
-        password_encoding: Optional[str] = None,
+        filename_encoding: str | None = None,
+        password_encoding: str | None = None,
     ) -> tuple[bool, list[str]]:
         rf = self._import()
         candidates = self._resolve_candidates(password, password_encoding)

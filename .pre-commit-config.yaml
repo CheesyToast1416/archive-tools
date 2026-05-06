@@ -1,0 +1,26 @@
+repos:
+  # Standard file cleanup hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+
+  # Ruff linter and formatter
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.4.4 # Match this roughly with your pyproject.toml version
+    hooks:
+      - id: ruff
+        args: [ --fix ]
+      - id: ruff-format
+
+  # Mypy type checking
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.10.0
+    hooks:
+      - id: mypy
+        # CRITICAL: Mypy needs PySide6 in its isolated environment to check types
+        additional_dependencies: [ "PySide6>=6.6.0" ]
+        args: [--config-file=pyproject.toml]

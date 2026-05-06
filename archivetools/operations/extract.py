@@ -4,7 +4,6 @@ import os
 import re
 from collections.abc import Callable
 from pathlib import Path
-from typing import Optional
 
 from archivetools.formats import detect_handler
 
@@ -23,15 +22,16 @@ def _default_output_dir(archive_path: Path) -> Path:
 
 
 def extract_cjk(
-        archive_path: str | os.PathLike,
-        password: str,
-        output_dir: Optional[str | os.PathLike] = None,
-        *,
-        filename_encoding: Optional[str] = None,
-        password_encoding: Optional[str] = None,
-        verbose: bool = True,
-        progress: Optional[Callable[[int, int, str], None]] = None,
-) -> tuple[bool, Optional[str]]:
+    archive_path: str | os.PathLike,
+    password: str,
+    output_dir: str | os.PathLike | None = None,
+    *,
+    filename_encoding: str | None = None,
+    password_encoding: str | None = None,
+    verbose: bool = True,
+    progress: Callable[[int, int, str], None] | None = None,
+    bytes_progress: Callable[[int, int], None] | None = None,
+) -> tuple[bool, str | None]:
     archive_path = Path(archive_path)
     if not archive_path.exists():
         raise FileNotFoundError(f"Archive not found: {archive_path}")
@@ -44,9 +44,12 @@ def extract_cjk(
 
     handler, canonical = detect_handler(archive_path)
     return handler.extract(
-        canonical, password, output_dir,
+        canonical,
+        password,
+        output_dir,
         filename_encoding=filename_encoding,
         password_encoding=password_encoding,
         verbose=verbose,
         progress=progress,
+        bytes_progress=bytes_progress,
     )

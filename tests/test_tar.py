@@ -14,7 +14,9 @@ class TestTarHandler:
         (src / "hello.txt").write_text("world")
         (src / "data.csv").write_text("a,b,c")
 
-        ext = {"": ".tar", "gz": ".tar.gz", "bz2": ".tar.bz2", "xz": ".tar.xz"}[compression]
+        ext = {"": ".tar", "gz": ".tar.gz", "bz2": ".tar.bz2", "xz": ".tar.xz"}[
+            compression
+        ]
         archive = tmp_path / f"test{ext}"
         mode = f"w:{compression}" if compression else "w"
         with tarfile.open(archive, mode) as tf:

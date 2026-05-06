@@ -14,7 +14,12 @@ from archivetools.formats.base import ArchiveHandler, ArchiveInfo
 from archivetools.formats.rar import RarHandler
 from archivetools.formats.sevenzip import SevenZipHandler
 from archivetools.formats.tar import TarHandler
-from archivetools.formats.zip import SplitZipHandler, ZipHandler, ZipHandlerAES, _sniff_zip_aes
+from archivetools.formats.zip import (
+    SplitZipHandler,
+    ZipHandler,
+    ZipHandlerAES,
+    _sniff_zip_aes,
+)
 
 log = logging.getLogger(__name__)
 
@@ -36,20 +41,20 @@ __all__ = [
 FORMAT_REGISTRY: dict[str, type[ArchiveHandler]] = {
     ".zip": ZipHandler,
     ".rar": RarHandler,
-    ".7z":  SevenZipHandler,
+    ".7z": SevenZipHandler,
     ".tar": TarHandler,
 }
 
 
 _MAGIC: list[tuple[bytes, type[ArchiveHandler]]] = [
-    (b"PK\x03\x04",              ZipHandler),
-    (b"PK\x05\x06",              ZipHandler),   # empty ZIP
-    (b"Rar!\x1a\x07\x01\x00",   RarHandler),   # RAR5 (check before RAR4)
-    (b"Rar!\x1a\x07\x00",       RarHandler),   # RAR4
-    (b"7z\xbc\xaf\x27\x1c",     SevenZipHandler),
-    (b"\x1f\x8b",               TarHandler),   # gzip → probably .tar.gz
-    (b"BZh",                    TarHandler),   # bzip2 → probably .tar.bz2
-    (b"\xfd7zXZ\x00",           TarHandler),   # xz → probably .tar.xz
+    (b"PK\x03\x04", ZipHandler),
+    (b"PK\x05\x06", ZipHandler),  # empty ZIP
+    (b"Rar!\x1a\x07\x01\x00", RarHandler),  # RAR5 (check before RAR4)
+    (b"Rar!\x1a\x07\x00", RarHandler),  # RAR4
+    (b"7z\xbc\xaf\x27\x1c", SevenZipHandler),
+    (b"\x1f\x8b", TarHandler),  # gzip → probably .tar.gz
+    (b"BZh", TarHandler),  # bzip2 → probably .tar.bz2
+    (b"\xfd7zXZ\x00", TarHandler),  # xz → probably .tar.xz
 ]
 _MAGIC_READ_SIZE = 8
 
@@ -86,7 +91,9 @@ def detect_handler(archive_path: Path) -> tuple[ArchiveHandler, Path]:
     """
     name = archive_path.name.lower()
 
-    if name.endswith((".tar.gz", ".tgz", ".tar.bz2", ".tbz2", ".tar.xz", ".txz", ".tar")):
+    if name.endswith(
+        (".tar.gz", ".tgz", ".tar.bz2", ".tbz2", ".tar.xz", ".txz", ".tar")
+    ):
         return TarHandler(), archive_path
 
     # ── multi-volume / split detection ───────────────────────────────────────
@@ -101,7 +108,8 @@ def detect_handler(archive_path: Path) -> tuple[ArchiveHandler, Path]:
         base_ext = Path(re.sub(r"\.\d+$", "", numbered[0].name)).suffix.lower()
         log.info(
             "Numbered split archive detected (%d parts, base extension: %s)",
-            len(numbered), base_ext,
+            len(numbered),
+            base_ext,
         )
         if base_ext == ".zip":
             return SplitZipHandler(numbered), archive_path
@@ -134,7 +142,9 @@ def detect_handler(archive_path: Path) -> tuple[ArchiveHandler, Path]:
     # ── magic-byte fallback (handles files with wrong/missing extension) ─────────
     handler = _detect_by_magic(archive_path)
     if handler:
-        log.info("Format detected by magic bytes (extension was %r).", suffix or "(none)")
+        log.info(
+            "Format detected by magic bytes (extension was %r).", suffix or "(none)"
+        )
         return handler, archive_path
 
     raise ValueError(f"Unsupported archive format: '{suffix}'")

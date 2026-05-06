@@ -4,7 +4,7 @@ import logging
 import tarfile
 from collections.abc import Callable
 from pathlib import Path
-from typing import Optional
+from typing import Any
 
 from archivetools.formats.base import ArchiveHandler, ArchiveInfo
 
@@ -17,16 +17,17 @@ class TarHandler(ArchiveHandler):
     CAN_ENCRYPT_CREATE = False  # TAR has no native encryption
 
     def extract(
-            self,
-            archive_path: Path,
-            password: str,
-            output_dir: Path,
-            *,
-            filename_encoding: Optional[str] = None,
-            password_encoding: Optional[str] = None,
-            verbose: bool = True,
-            progress: Optional[Callable[[int, int, str], None]] = None,
-    ) -> tuple[bool, Optional[str]]:
+        self,
+        archive_path: Path,
+        password: str,
+        output_dir: Path,
+        *,
+        filename_encoding: str | None = None,
+        password_encoding: str | None = None,
+        verbose: bool = True,
+        progress: Callable[[int, int, str], None] | None = None,
+        bytes_progress: Callable[[int, int], None] | None = None,
+    ) -> tuple[bool, str | None]:
         if password:
             raise TypeError(
                 "TAR archives do not support encryption. "
@@ -52,12 +53,12 @@ class TarHandler(ArchiveHandler):
             return False, None
 
     def list_contents(
-            self,
-            archive_path: Path,
-            password: str,
-            filename_encoding: Optional[str] = None,
-            password_encoding: Optional[str] = None,
-    ) -> tuple[bool, Optional[str], list[str]]:
+        self,
+        archive_path: Path,
+        password: str,
+        filename_encoding: str | None = None,
+        password_encoding: str | None = None,
+    ) -> tuple[bool, str | None, list[str]]:
         if password:
             raise TypeError("TAR archives do not support encryption.")
         try:
@@ -65,6 +66,35 @@ class TarHandler(ArchiveHandler):
                 return True, None, tf.getnames()
         except Exception:  # noqa: BLE001
             return False, None, []
+
+    def test(
+        self,
+        archive_path: Path,
+        password: str,
+        *,
+        filename_encoding: str | None = None,
+        password_encoding: str | None = None,
+    ) -> tuple[bool, list[str]]:
+        if password:
+            raise TypeError("TAR archives do not support encryption.")
+        try:
+            with tarfile.open(archive_path) as tf:
+                failed: list[str] = []
+                for member in tf.getmembers():
+                    if not member.isfile():
+                        continue
+                    try:
+                        f = tf.extractfile(member)
+                        if f:
+                            while f.read(1 << 16):
+                                pass
+                    except Exception as exc:  # noqa: BLE001
+                        log.debug("TAR test entry %s: %s", member.name, exc)
+                        failed.append(member.name)
+                return len(failed) == 0, failed
+        except Exception as exc:  # noqa: BLE001
+            log.error("Cannot open TAR archive for testing: %s", exc)
+            return False, [str(exc)]
 
     @staticmethod
     def _write_mode(output_path: Path) -> str:
@@ -78,13 +108,13 @@ class TarHandler(ArchiveHandler):
         return "w"
 
     def create(
-            self,
-            output_path: Path,
-            files: list[Path],
-            *,
-            password: Optional[str] = None,
-            compression_level: int = 6,
-            filename_encoding: Optional[str] = None,
+        self,
+        output_path: Path,
+        files: list[Path],
+        *,
+        password: str | None = None,
+        compression_level: int = 6,
+        filename_encoding: str | None = None,
     ) -> bool:
         if password:
             raise TypeError(
@@ -92,7 +122,7 @@ class TarHandler(ArchiveHandler):
                 "Use ZIP-AES or 7z for encrypted archives."
             )
         mode = self._write_mode(output_path)
-        with tarfile.open(output_path, mode) as tf:
+        with tarfile.open(str(output_path), mode) as tf:  # type: ignore[call-overload]
             for f in files:
                 f = Path(f)
                 tf.add(str(f), arcname=f.name)
@@ -115,8 +145,12 @@ class TarHandler(ArchiveHandler):
         except Exception:  # noqa: BLE001
             return super().get_info(archive_path)
 
-    def _try_extract(self, *_, progress=None):
+    def _try_extract(  # type: ignore[override]
+        self, *_: Any, progress: Any = None, bytes_progress: Any = None
+    ) -> bool:
         raise NotImplementedError("TarHandler uses extract() directly.")
 
-    def _list_names(self, *_):
+    def _list_names(  # type: ignore[override]
+        self, *_: Any
+    ) -> list[str] | None:
         raise NotImplementedError("TarHandler uses list_contents() directly.")

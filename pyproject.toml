@@ -23,8 +23,58 @@ archivetools = "archivetools.cli:main"
 archivetools-gui = "archivetools.gui.app:main"
 
 [project.optional-dependencies]
-dev = ["pytest"]
+dev = [
+    "pytest",
+    "ruff",
+    "mypy",
+    "pre-commit"
+]
 
 [tool.setuptools.packages.find]
 where = ["."]
 exclude = ["tests*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "N"]
+# N802: Qt requires camelCase for event-handler overrides (dragEnterEvent, dropEvent, etc.)
+ignore = ["N802"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.mypy]
+python_version = "3.14"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+
+[[tool.mypy.overrides]]
+module = "PySide6.*"
+ignore_missing_imports = true
+
+# Third-party libraries without stubs
+[[tool.mypy.overrides]]
+module = ["pyzipper", "rarfile", "py7zr", "charset_normalizer"]
+ignore_missing_imports = true
+
+# Test files: strict annotations are not required for tests
+[[tool.mypy.overrides]]
+module = "tests.*"
+ignore_errors = true
+
+# GUI layer: PySide6 stubs are incomplete; Signal, findChild, etc. produce many
+# false positives that can't be fixed without custom stubs.
+[[tool.mypy.overrides]]
+module = "archivetools.gui.*"
+ignore_errors = true

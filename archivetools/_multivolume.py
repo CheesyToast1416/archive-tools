@@ -14,8 +14,11 @@ def _find_numbered_parts(path: Path) -> list[Path]:
         return []
     base = m.group(1)
     parts = sorted(
-        (p for p in path.parent.iterdir()
-         if re.fullmatch(rf"{re.escape(base)}\.\d+", p.name)),
+        (
+            p
+            for p in path.parent.iterdir()
+            if re.fullmatch(rf"{re.escape(base)}\.\d+", p.name)
+        ),
         key=lambda p: int(p.suffix.lstrip(".")),
     )
     return parts if len(parts) > 1 else []
@@ -44,8 +47,11 @@ def _find_zip_split_parts(path: Path) -> list[Path]:
         return []
 
     z_parts = sorted(
-        (p for p in parent.iterdir()
-         if re.fullmatch(rf"{re.escape(base)}\.z\d+", p.name, re.IGNORECASE)),
+        (
+            p
+            for p in parent.iterdir()
+            if re.fullmatch(rf"{re.escape(base)}\.z\d+", p.name, re.IGNORECASE)
+        ),
         key=lambda p: int(re.sub(r"\D", "", p.suffix)),
     )
     final = parent / f"{base}.zip"

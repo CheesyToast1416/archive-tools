@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Optional
-
 from PySide6.QtCore import Signal
 from PySide6.QtGui import QFontDatabase
 from PySide6.QtWidgets import (
@@ -54,7 +52,7 @@ class ConvertPanel(QWidget):
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
-        self._worker: Optional[ConvertWorker] = None
+        self._worker: ConvertWorker | None = None
         self._build_ui()
         self._on_format_changed(0)
 

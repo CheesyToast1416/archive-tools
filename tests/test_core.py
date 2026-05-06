@@ -84,6 +84,7 @@ class TestDetectHandler:
 class TestMagicByteDetection:
     def test_zip_no_extension(self, tmp_path):
         import zipfile
+
         src = tmp_path / "archive"  # no extension
         with zipfile.ZipFile(src, "w") as zf:
             zf.writestr("hello.txt", "world")

@@ -51,6 +51,7 @@ class TestCreateZip:
         assert out.exists()
         # Verify it can be read back with pyzipper
         import pyzipper
+
         with pyzipper.AESZipFile(out) as zf:
             zf.setpassword(b"secret")
             names = zf.namelist()
@@ -106,6 +107,7 @@ class TestCreateSevenZip:
         ok = create_archive(out, [src], format="7z")
         assert ok is True
         import py7zr
+
         with py7zr.SevenZipFile(str(out), mode="r") as sz:
             names = sz.getnames()
         assert any("hello.txt" in n for n in names)
@@ -116,6 +118,7 @@ class TestCreateSevenZip:
         ok = create_archive(out, [src], format="7z", password="pw123")
         assert ok is True
         import py7zr
+
         with py7zr.SevenZipFile(str(out), mode="r", password="pw123") as sz:
             names = sz.getnames()
         assert any("hello.txt" in n for n in names)

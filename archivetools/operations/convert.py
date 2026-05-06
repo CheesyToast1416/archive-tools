@@ -4,7 +4,6 @@ import logging
 import os
 import tempfile
 from pathlib import Path
-from typing import Optional
 
 from archivetools.operations.create import create_archive
 from archivetools.operations.extract import extract_cjk
@@ -17,10 +16,10 @@ def convert_archive(
     output_path: str | os.PathLike,
     output_format: str = "zip",
     *,
-    password: Optional[str] = None,
-    output_password: Optional[str] = None,
-    filename_encoding: Optional[str] = None,
-    password_encoding: Optional[str] = None,
+    password: str | None = None,
+    output_password: str | None = None,
+    filename_encoding: str | None = None,
+    password_encoding: str | None = None,
 ) -> bool:
     """
     Re-package *input_path* into *output_path* using *output_format*.

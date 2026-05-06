@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional
+from collections.abc import Sequence
 
 from PySide6.QtCore import QThread, Signal
 
-from typing import Sequence
-
+from archivetools.gui.log_handler import GuiLogHandler
 from archivetools.operations import (
     convert_archive,
     create_archive,
@@ -15,7 +14,6 @@ from archivetools.operations import (
     list_cjk,
     test_archive,
 )
-from archivetools.gui.log_handler import GuiLogHandler
 
 _CORE_LOGGER = "archivetools.formats"  # formats/* now owns the log output
 
@@ -47,8 +45,8 @@ class ListWorker(_BaseWorker):
         self,
         archive_path: str,
         password: str,
-        filename_encoding: Optional[str],
-        password_encoding: Optional[str] = None,
+        filename_encoding: str | None,
+        password_encoding: str | None = None,
     ) -> None:
         super().__init__()
         self._archive_path = archive_path
@@ -76,15 +74,16 @@ class ExtractionWorker(_BaseWorker):
     """Calls extract_cjk() in a background thread and emits results via signals."""
 
     result = Signal(bool, str)
-    file_progress = Signal(int, int, str)  # current, total, filename
+    file_progress = Signal(int, int, str)  # current_file, total_files, filename
+    bytes_progress = Signal(int, int)  # bytes_done, file_size
 
     def __init__(
         self,
         archive_path: str,
         password: str,
         output_dir: str,
-        filename_encoding: Optional[str],
-        password_encoding: Optional[str] = None,
+        filename_encoding: str | None,
+        password_encoding: str | None = None,
     ) -> None:
         super().__init__()
         self._archive_path = archive_path
@@ -103,6 +102,7 @@ class ExtractionWorker(_BaseWorker):
                 filename_encoding=self._filename_encoding,
                 password_encoding=self._password_encoding,
                 progress=lambda c, t, f: self.file_progress.emit(c, t, f),
+                bytes_progress=lambda d, s: self.bytes_progress.emit(d, s),
             )
             self.result.emit(ok, enc or "")
         except Exception as exc:  # noqa: BLE001
@@ -120,8 +120,8 @@ class TestWorker(_BaseWorker):
         self,
         archive_path: str,
         password: str,
-        filename_encoding: Optional[str],
-        password_encoding: Optional[str] = None,
+        filename_encoding: str | None,
+        password_encoding: str | None = None,
     ) -> None:
         super().__init__()
         self._archive_path = archive_path
@@ -157,8 +157,8 @@ class ConvertWorker(_BaseWorker):
         output_format: str,
         password: str,
         output_password: str,
-        filename_encoding: Optional[str] = None,
-        password_encoding: Optional[str] = None,
+        filename_encoding: str | None = None,
+        password_encoding: str | None = None,
     ) -> None:
         super().__init__()
         self._input_path = input_path
@@ -220,7 +220,7 @@ class CreateWorker(_BaseWorker):
         format: str,
         password: str,
         compression_level: int,
-        filename_encoding: Optional[str] = None,
+        filename_encoding: str | None = None,
     ) -> None:
         super().__init__()
         self._output_path = output_path

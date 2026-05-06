@@ -19,11 +19,16 @@ def main() -> None:
         archive = input("Archive path: ").strip()
         password = getpass.getpass("Password (Unicode): ")
         output = input("Output directory (blank = default): ").strip() or None
-        filename_encoding = input("Filename encoding (e.g. gbk, big5) [blank = auto]: ").strip() or None
+        filename_encoding = (
+            input("Filename encoding (e.g. gbk, big5) [blank = auto]: ").strip() or None
+        )
 
         args = argparse.Namespace(
-            archive=archive, password=password, output=output,
-            filename_encoding=filename_encoding, yes=False,
+            archive=archive,
+            password=password,
+            output=output,
+            filename_encoding=filename_encoding,
+            yes=False,
         )
 
     # ── Command-Line Mode ─────────────────────────────────────────────────────
@@ -33,13 +38,18 @@ def main() -> None:
         )
         parser.add_argument("archive", help="Path to the archive")
         parser.add_argument("password", help="The archive password in plain Unicode")
-        parser.add_argument("output", nargs="?", help="Extraction destination directory")
         parser.add_argument(
-            "-e", "--filename-encoding",
+            "output", nargs="?", help="Extraction destination directory"
+        )
+        parser.add_argument(
+            "-e",
+            "--filename-encoding",
             help="Apply encoding to gibberish filenames (e.g., gbk, big5)",
         )
         parser.add_argument(
-            "-y", "--yes", action="store_true",
+            "-y",
+            "--yes",
+            action="store_true",
             help="Skip preview prompt and extract immediately",
         )
         args = parser.parse_args()
@@ -67,7 +77,9 @@ def main() -> None:
             sys.exit(0)
 
     success, enc = extract_cjk(
-        args.archive, args.password, args.output,
+        args.archive,
+        args.password,
+        args.output,
         filename_encoding=args.filename_encoding,
     )
 

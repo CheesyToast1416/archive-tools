@@ -5,7 +5,6 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
 from archivetools.encoding.candidates import password_candidates
 
@@ -22,7 +21,7 @@ class ArchiveInfo:
     uncompressed_size: int  # bytes; -1 if unknown
     is_encrypted: bool
     comment: str = ""
-    archive_path: Optional[Path] = field(default=None, repr=False)
+    archive_path: Path | None = field(default=None, repr=False)
 
 
 class ArchiveHandler(ABC):
@@ -37,7 +36,7 @@ class ArchiveHandler(ABC):
     @staticmethod
     def _resolve_candidates(
         password: str,
-        password_encoding: Optional[str],
+        password_encoding: str | None,
     ) -> list[tuple[bytes, str]]:
         """Return password byte candidates, optionally pinned to one encoding."""
         if password_encoding:
@@ -55,11 +54,12 @@ class ArchiveHandler(ABC):
         password: str,
         output_dir: Path,
         *,
-        filename_encoding: Optional[str] = None,
-        password_encoding: Optional[str] = None,
+        filename_encoding: str | None = None,
+        password_encoding: str | None = None,
         verbose: bool = True,
-        progress: Optional[Callable[[int, int, str], None]] = None,
-    ) -> tuple[bool, Optional[str]]:
+        progress: Callable[[int, int, str], None] | None = None,
+        bytes_progress: Callable[[int, int], None] | None = None,
+    ) -> tuple[bool, str | None]:
         """
         Try every CJK encoding for *password* and extract *archive_path*
         into *output_dir* with the first byte sequence that works.
@@ -91,6 +91,7 @@ class ArchiveHandler(ABC):
                     output_dir,
                     filename_encoding,
                     progress=progress,
+                    bytes_progress=bytes_progress,
                 ):
                     if verbose:
                         log.info("✓ Success with encoding: %s", enc)
@@ -108,9 +109,9 @@ class ArchiveHandler(ABC):
         self,
         archive_path: Path,
         password: str,
-        filename_encoding: Optional[str] = None,
-        password_encoding: Optional[str] = None,
-    ) -> tuple[bool, Optional[str], list[str]]:
+        filename_encoding: str | None = None,
+        password_encoding: str | None = None,
+    ) -> tuple[bool, str | None, list[str]]:
         """Return ``(success, encoding_used, file_names)`` without extracting."""
         for pwd_bytes, enc in self._resolve_candidates(password, password_encoding):
             try:
@@ -141,8 +142,8 @@ class ArchiveHandler(ABC):
         archive_path: Path,
         password: str,
         *,
-        filename_encoding: Optional[str] = None,
-        password_encoding: Optional[str] = None,
+        filename_encoding: str | None = None,
+        password_encoding: str | None = None,
     ) -> tuple[bool, list[str]]:
         """
         Verify archive integrity without writing to disk.
@@ -170,9 +171,9 @@ class ArchiveHandler(ABC):
         output_path: Path,
         files: list[Path],
         *,
-        password: Optional[str] = None,
+        password: str | None = None,
         compression_level: int = 6,
-        filename_encoding: Optional[str] = None,
+        filename_encoding: str | None = None,
     ) -> bool:
         raise NotImplementedError(
             f"{self.FORMAT_NAME} handler does not support archive creation."
@@ -186,8 +187,9 @@ class ArchiveHandler(ABC):
         archive_path: Path,
         pwd_bytes: bytes,
         output_dir: Path,
-        filename_encoding: Optional[str],
-        progress: Optional[Callable[[int, int, str], None]] = None,
+        filename_encoding: str | None,
+        progress: Callable[[int, int, str], None] | None = None,
+        bytes_progress: Callable[[int, int], None] | None = None,
     ) -> bool:
         pass
 
@@ -196,6 +198,6 @@ class ArchiveHandler(ABC):
         self,
         archive_path: Path,
         pwd_bytes: bytes,
-        filename_encoding: Optional[str],
-    ) -> Optional[list[str]]:
+        filename_encoding: str | None,
+    ) -> list[str] | None:
         pass

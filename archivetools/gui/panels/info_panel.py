@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Optional, Union
-
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QFormLayout,
@@ -45,7 +43,7 @@ class InfoPanel(QWidget):
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
-        self._worker: Optional[InfoWorker] = None
+        self._worker: InfoWorker | None = None
         self._build_ui()
 
     # ── UI ────────────────────────────────────────────────────────────────────
@@ -89,21 +87,21 @@ class InfoPanel(QWidget):
         box = QGroupBox("Archive Details")
         form = QFormLayout(box)
 
-        self._lbl_format     = QLabel("—")
-        self._lbl_count      = QLabel("—")
+        self._lbl_format = QLabel("—")
+        self._lbl_count = QLabel("—")
         self._lbl_compressed = QLabel("—")
         self._lbl_uncompressed = QLabel("—")
-        self._lbl_ratio      = QLabel("—")
-        self._lbl_encrypted  = QLabel("—")
-        self._lbl_comment    = QLabel("—")
+        self._lbl_ratio = QLabel("—")
+        self._lbl_encrypted = QLabel("—")
+        self._lbl_comment = QLabel("—")
 
-        form.addRow("Format:",          self._lbl_format)
-        form.addRow("Files:",           self._lbl_count)
-        form.addRow("Compressed:",      self._lbl_compressed)
-        form.addRow("Uncompressed:",    self._lbl_uncompressed)
-        form.addRow("Ratio:",           self._lbl_ratio)
-        form.addRow("Encrypted:",       self._lbl_encrypted)
-        form.addRow("Comment:",         self._lbl_comment)
+        form.addRow("Format:", self._lbl_format)
+        form.addRow("Files:", self._lbl_count)
+        form.addRow("Compressed:", self._lbl_compressed)
+        form.addRow("Uncompressed:", self._lbl_uncompressed)
+        form.addRow("Ratio:", self._lbl_ratio)
+        form.addRow("Encrypted:", self._lbl_encrypted)
+        form.addRow("Comment:", self._lbl_comment)
         return box
 
     def _build_log_group(self) -> QGroupBox:
@@ -166,8 +164,12 @@ class InfoPanel(QWidget):
 
     def _clear_details(self) -> None:
         for lbl in (
-            self._lbl_format, self._lbl_count, self._lbl_compressed,
-            self._lbl_uncompressed, self._lbl_ratio, self._lbl_encrypted,
+            self._lbl_format,
+            self._lbl_count,
+            self._lbl_compressed,
+            self._lbl_uncompressed,
+            self._lbl_ratio,
+            self._lbl_encrypted,
             self._lbl_comment,
         ):
             lbl.setText("—")
@@ -175,9 +177,7 @@ class InfoPanel(QWidget):
 
     def _populate(self, info: ArchiveInfo) -> None:
         self._lbl_format.setText(info.format_name)
-        self._lbl_count.setText(
-            str(info.file_count) if info.file_count >= 0 else "—"
-        )
+        self._lbl_count.setText(str(info.file_count) if info.file_count >= 0 else "—")
         self._lbl_compressed.setText(_fmt_size(info.compressed_size))
         self._lbl_uncompressed.setText(_fmt_size(info.uncompressed_size))
 

@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
-from typing import Optional
 
 from archivetools.formats import detect_handler
 
@@ -14,8 +13,8 @@ def test_archive(
     archive_path: str | os.PathLike,
     password: str = "",
     *,
-    filename_encoding: Optional[str] = None,
-    password_encoding: Optional[str] = None,
+    filename_encoding: str | None = None,
+    password_encoding: str | None = None,
 ) -> tuple[bool, list[str]]:
     """
     Verify archive integrity without extracting to disk.

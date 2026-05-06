@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from archivetools._multivolume import (
     _7z_first_part,
     _find_numbered_parts,
@@ -59,7 +57,9 @@ class TestRarFirstPart:
     def test_new_style(self, tmp_path):
         (tmp_path / "file.part1.rar").touch()
         (tmp_path / "file.part2.rar").touch()
-        assert _rar_first_part(tmp_path / "file.part2.rar") == tmp_path / "file.part1.rar"
+        assert (
+            _rar_first_part(tmp_path / "file.part2.rar") == tmp_path / "file.part1.rar"
+        )
 
     def test_old_style(self, tmp_path):
         (tmp_path / "file.rar").touch()

@@ -2,12 +2,12 @@ from __future__ import annotations
 
 # Priority order: most-common Chinese Windows encodings first, UTF-8 last.
 CJK_ENCODINGS: list[str] = [
-    "gbk",        # CP936 – dominant on Mainland Chinese Windows
-    "gb2312",     # strict GBK subset; usually an alias of GBK
-    "gb18030",    # superset of GBK used on newer Mainland systems
-    "big5",       # Traditional Chinese – Taiwan / Hong Kong
+    "gbk",  # CP936 – dominant on Mainland Chinese Windows
+    "gb2312",  # strict GBK subset; usually an alias of GBK
+    "gb18030",  # superset of GBK used on newer Mainland systems
+    "big5",  # Traditional Chinese – Taiwan / Hong Kong
     "big5hkscs",  # Hong Kong variant of BIG5
-    "utf-8",      # Modern WinRAR ≥ 5.x / 7-Zip on any locale
+    "utf-8",  # Modern WinRAR ≥ 5.x / 7-Zip on any locale
 ]
 
 

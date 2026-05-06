@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Optional
-
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QDragEnterEvent, QDropEvent, QFontDatabase
 from PySide6.QtWidgets import (
@@ -28,13 +26,13 @@ from archivetools.gui.widgets.archive_picker import ArchivePickerWidget
 from archivetools.gui.workers import CreateWorker
 
 _FORMATS = [
-    ("ZIP (no password)",       "zip",     ".zip",     False),
-    ("ZIP (AES-256 encrypted)", "zip-aes", ".zip",     True),
-    ("7z",                      "7z",      ".7z",      True),
-    ("TAR (.tar)",              "tar",     ".tar",     False),
-    ("TAR.GZ (.tar.gz)",        "tar.gz",  ".tar.gz",  False),
-    ("TAR.BZ2 (.tar.bz2)",      "tar.bz2", ".tar.bz2", False),
-    ("TAR.XZ (.tar.xz)",        "tar.xz",  ".tar.xz",  False),
+    ("ZIP (no password)", "zip", ".zip", False),
+    ("ZIP (AES-256 encrypted)", "zip-aes", ".zip", True),
+    ("7z", "7z", ".7z", True),
+    ("TAR (.tar)", "tar", ".tar", False),
+    ("TAR.GZ (.tar.gz)", "tar.gz", ".tar.gz", False),
+    ("TAR.BZ2 (.tar.bz2)", "tar.bz2", ".tar.bz2", False),
+    ("TAR.XZ (.tar.xz)", "tar.xz", ".tar.xz", False),
 ]
 
 _SAVE_FILTER = (
@@ -81,7 +79,7 @@ class CreatePanel(QWidget):
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
-        self._worker: Optional[CreateWorker] = None
+        self._worker: CreateWorker | None = None
         self._build_ui()
         self._on_format_changed(0)
 
@@ -246,8 +244,7 @@ class CreatePanel(QWidget):
 
     def _add_paths(self, paths: list[str]) -> None:
         existing = {
-            self._file_list.item(i).text()
-            for i in range(self._file_list.count())
+            self._file_list.item(i).text() for i in range(self._file_list.count())
         }
         for p in paths:
             if p not in existing:
@@ -266,10 +263,7 @@ class CreatePanel(QWidget):
         idx = self._format_combo.currentIndex()
         _, fmt, _ext, supports_password = _FORMATS[idx]
         password = self._password_edit.text() if supports_password else ""
-        files = [
-            self._file_list.item(i).text()
-            for i in range(self._file_list.count())
-        ]
+        files = [self._file_list.item(i).text() for i in range(self._file_list.count())]
         level = self._compression_slider.value()
 
         self._log("─" * 60)

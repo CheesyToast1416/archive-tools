@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Optional, Union
-
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFontDatabase
 from PySide6.QtWidgets import (
@@ -29,9 +27,10 @@ from archivetools.encoding.detect import (
 )
 from archivetools.gui.widgets.archive_picker import ArchivePickerWidget
 from archivetools.gui.widgets.encoding_combo import EncodingComboBox
+from archivetools.gui.widgets.progress_dialog import ExtractionProgressDialog
 from archivetools.gui.workers import ExtractionWorker, ListWorker, TestWorker
 
-_AnyWorker = Union[ListWorker, ExtractionWorker, TestWorker]
+_AnyWorker = ListWorker | ExtractionWorker | TestWorker
 
 _ARCHIVE_FILTER = (
     "Archives (*.zip *.rar *.7z *.z01 *.r00 *.001 *.tar *.tar.gz *.tgz "
@@ -47,8 +46,9 @@ class ExtractPanel(QWidget):
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
-        self._worker: Optional[_AnyWorker] = None
+        self._worker: _AnyWorker | None = None
         self._preview_valid = False
+        self._progress_dialog: ExtractionProgressDialog | None = None
         self._build_ui()
 
     # ── UI Construction ───────────────────────────────────────────────────────
@@ -269,10 +269,19 @@ class ExtractPanel(QWidget):
         self._start_worker(worker)
 
     def _start_extract(self) -> None:
+        import os
+
         archive = self._archive_picker.path
         if not archive:
             return
         self._log("─" * 60)
+
+        # Create progress popup
+        archive_name = os.path.basename(archive)
+        self._progress_dialog = ExtractionProgressDialog(
+            archive_name, parent=self.window()
+        )
+        self._progress_dialog.show()
 
         worker = ExtractionWorker(
             archive,
@@ -285,6 +294,16 @@ class ExtractPanel(QWidget):
         worker.error.connect(self._on_extract_error)
         worker.log_message.connect(self._log)
         worker.file_progress.connect(self._on_file_progress)
+        worker.file_progress.connect(
+            lambda c, t, f: self._progress_dialog.update_file_progress(c, t, f)
+            if self._progress_dialog
+            else None
+        )
+        worker.bytes_progress.connect(
+            lambda d, s: self._progress_dialog.update_bytes_progress(d, s)
+            if self._progress_dialog
+            else None
+        )
         self._start_worker(worker)
 
     def _start_worker(self, worker: _AnyWorker) -> None:
@@ -320,6 +339,11 @@ class ExtractPanel(QWidget):
 
     def _on_extract_finished(self, ok: bool, enc: str) -> None:
         self._set_busy(False)
+        if self._progress_dialog:
+            if ok:
+                self._progress_dialog.set_done()
+            self._progress_dialog.hide()
+            self._progress_dialog = None
         if ok:
             self._log(f"✓ Extraction complete  (encoding: {enc or 'auto'})")
             self.status_changed.emit("Extraction complete")
@@ -347,6 +371,9 @@ class ExtractPanel(QWidget):
 
     def _on_extract_error(self, msg: str) -> None:
         self._set_busy(False)
+        if self._progress_dialog:
+            self._progress_dialog.hide()
+            self._progress_dialog = None
         self._log(f"✗ Error: {msg}")
         self.status_changed.emit("Error")
 
@@ -388,7 +415,7 @@ class ExtractPanel(QWidget):
         self._archive_picker.set_path(path)
 
     def _run_filename_detection(self) -> None:
-        """Run charset-normalizer on the archive and update the filename encoding combo."""
+        """Run charset-normalizer on the archive; update the filename encoding combo."""
         from pathlib import Path
 
         archive = self._archive_picker.path
@@ -404,5 +431,6 @@ class ExtractPanel(QWidget):
         if codec and confidence >= 0.5:
             self._filename_encoding_combo.set_detected(codec, confidence)
             self._log(
-                f"  filename encoding detected: {codec.upper()} ({confidence:.0%} confidence)"
+                f"  filename encoding detected: {codec.upper()} "
+                f"({confidence:.0%} confidence)"
             )

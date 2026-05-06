@@ -35,7 +35,10 @@ class TestProgressCallback:
         out.mkdir()
         calls = []
         ZipHandler()._try_extract(
-            archive, b"", out, None,
+            archive,
+            b"",
+            out,
+            None,
             progress=lambda c, t, f: calls.append((c, t)),
         )
         assert len(calls) == 4
@@ -49,12 +52,14 @@ class TestProgressCallback:
         out.mkdir()
         calls = []
         TarHandler().extract(
-            archive, "", out,
+            archive,
+            "",
+            out,
             progress=lambda c, t, f: calls.append((c, t)),
         )
         assert len(calls) > 0
         totals = {t for _, t in calls}
-        assert len(totals) == 1   # consistent total throughout
+        assert len(totals) == 1  # consistent total throughout
         assert calls[-1][0] == calls[-1][1]  # last call: current == total
 
     def test_no_progress_arg_still_works(self, tmp_path):
@@ -69,7 +74,9 @@ class TestProgressCallback:
         out = tmp_path / "out"
         calls = []
         ok, _ = extract_cjk(
-            archive, "", str(out),
+            archive,
+            "",
+            str(out),
             filename_encoding=None,
             password_encoding=None,
             progress=lambda c, t, f: calls.append(c),

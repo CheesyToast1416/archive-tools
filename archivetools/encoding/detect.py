@@ -8,7 +8,7 @@ _RAR4_FLAG_UNICODE = 0x200
 
 
 def detect_filename_encoding(
-        raw_bytes_list: list[bytes],
+    raw_bytes_list: list[bytes],
 ) -> tuple[str | None, float]:
     """
     Run charset-normalizer on a batch of raw filename bytes.
@@ -35,7 +35,7 @@ def detect_filename_encoding(
 
 
 def detect_zip_filename_encoding(
-        archive_path: Path,
+    archive_path: Path,
 ) -> tuple[str | None, float]:
     """
     Collect raw (CP437-decoded-then-re-encoded) filename bytes from a ZIP
@@ -45,7 +45,7 @@ def detect_zip_filename_encoding(
         raw_samples: list[bytes] = []
         with zipfile.ZipFile(archive_path) as zf:
             for info in zf.infolist():
-                if info.flag_bits & 0x800:   # already UTF-8 — skip
+                if info.flag_bits & 0x800:  # already UTF-8 — skip
                     continue
                 try:
                     raw_samples.append(info.filename.encode("cp437"))
@@ -57,7 +57,7 @@ def detect_zip_filename_encoding(
 
 
 def detect_rar_filename_encoding(
-        archive_path: Path,
+    archive_path: Path,
 ) -> tuple[str | None, float]:
     """
     Detect the filename encoding used in a RAR archive.

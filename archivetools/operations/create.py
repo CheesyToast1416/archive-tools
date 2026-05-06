@@ -4,29 +4,32 @@ import logging
 import os
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from archivetools.formats.base import ArchiveHandler
 
 log = logging.getLogger(__name__)
 
 _FORMAT_EXTENSIONS = {
-    "zip":     ".zip",
+    "zip": ".zip",
     "zip-aes": ".zip",
-    "7z":      ".7z",
-    "tar":     ".tar",
-    "tar.gz":  ".tar.gz",
+    "7z": ".7z",
+    "tar": ".tar",
+    "tar.gz": ".tar.gz",
     "tar.bz2": ".tar.bz2",
-    "tar.xz":  ".tar.xz",
+    "tar.xz": ".tar.xz",
 }
 
 
 def create_archive(
-        output_path: str | os.PathLike,
-        files: Sequence[str | os.PathLike],
-        *,
-        format: str = "zip",
-        password: Optional[str] = None,
-        compression_level: int = 6,
-        filename_encoding: Optional[str] = None,
+    output_path: str | os.PathLike,
+    files: Sequence[str | os.PathLike],
+    *,
+    format: str = "zip",
+    password: str | None = None,
+    compression_level: int = 6,
+    filename_encoding: str | None = None,
 ) -> bool:
     """
     Create an archive at *output_path* containing *files*.
@@ -70,16 +73,20 @@ def create_archive(
     )
 
 
-def _get_handler(fmt: str):
+def _get_handler(fmt: str) -> ArchiveHandler:
     if fmt == "zip":
         from archivetools.formats.zip import ZipHandler
+
         return ZipHandler()
     if fmt == "zip-aes":
         from archivetools.formats.zip import ZipHandlerAES
+
         return ZipHandlerAES()
     if fmt == "7z":
         from archivetools.formats.sevenzip import SevenZipHandler
+
         return SevenZipHandler()
     # tar family
     from archivetools.formats.tar import TarHandler
+
     return TarHandler()
