@@ -5,7 +5,7 @@ import getpass
 import logging
 import sys
 
-from archivetools.operations import extract_cjk, list_cjk
+from archivetools.operations import extract_archive, list_archive
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(message)s")
 
@@ -13,7 +13,7 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(message)s")
 def main() -> None:
     # ── Interactive Mode (no arguments) ──────────────────────────────────────
     if len(sys.argv) == 1:
-        print("CJK Archive Password Fixer")
+        print("ArchiveTools")
         print("Supports: .zip  .rar  .7z  .tar.*")
         print("=" * 44)
         archive = input("Archive path: ").strip()
@@ -34,7 +34,9 @@ def main() -> None:
     # ── Command-Line Mode ─────────────────────────────────────────────────────
     else:
         parser = argparse.ArgumentParser(
-            description="Extract CJK encoded password-protected archives."
+            description=(
+                "Extract password-protected archives with automatic encoding detection."
+            ),
         )
         parser.add_argument("archive", help="Path to the archive")
         parser.add_argument("password", help="The archive password in plain Unicode")
@@ -56,7 +58,9 @@ def main() -> None:
 
     # ── Core Execution Flow ───────────────────────────────────────────────────
     try:
-        ok, enc, names = list_cjk(args.archive, args.password, args.filename_encoding)
+        ok, enc, names = list_archive(
+            args.archive, args.password, args.filename_encoding
+        )
     except TypeError as exc:
         print(f"\nError: {exc}\n")
         sys.exit(1)
@@ -76,7 +80,7 @@ def main() -> None:
             print("Aborted.")
             sys.exit(0)
 
-    success, enc = extract_cjk(
+    success, enc = extract_archive(
         args.archive,
         args.password,
         args.output,

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from archivetools.operations import extract_cjk, list_cjk
+from archivetools.operations import extract_archive, list_archive
 
 
 def _make_zip(path: Path, entries: dict[str, str] | None = None) -> Path:
@@ -28,8 +28,8 @@ def _make_tar(path: Path) -> Path:
 
 def _smart_extract(archive: Path, output_dir: str | None = None) -> bool:
     """Simulate what BatchExtractionWorker now does: list then smart-extract."""
-    _, _, names = list_cjk(archive, "", None, None)
-    ok, _ = extract_cjk(
+    _, _, names = list_archive(archive, "", None, None)
+    ok, _ = extract_archive(
         archive,
         "",
         output_dir,
@@ -97,7 +97,7 @@ class TestBatchExtraction:
 
     def test_nonexistent_raises(self, tmp_path: Path) -> None:
         with pytest.raises(FileNotFoundError):
-            extract_cjk(
+            extract_archive(
                 tmp_path / "missing.zip",
                 "",
                 None,

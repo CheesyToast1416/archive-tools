@@ -1,7 +1,17 @@
-# Backwards-compatibility shim.
-# All logic has moved to archivetools.formats, archivetools.operations, and
-# archivetools.encoding.  This module will be removed in a future release.
+# Backwards-compatibility shim — will be removed in a future release.
+# Import from the canonical locations instead:
+#   from archivetools.operations import extract_archive, list_archive
+#   from archivetools.formats import detect_handler
 from archivetools.formats import detect_handler
-from archivetools.operations import create_archive, extract_cjk, list_cjk
+from archivetools.operations import (
+    create_archive,
+    extract_archive,
+    list_archive,
+)
 
-__all__ = ["extract_cjk", "list_cjk", "detect_handler", "create_archive"]
+__all__ = [
+    "extract_archive",
+    "list_archive",
+    "detect_handler",
+    "create_archive",
+]

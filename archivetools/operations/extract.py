@@ -6,6 +6,7 @@ import re
 import shutil
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from enum import StrEnum
 from pathlib import Path
 
 from archivetools.formats import detect_handler
@@ -13,20 +14,38 @@ from archivetools.formats import detect_handler
 log = logging.getLogger(__name__)
 
 
-# ── Archive structure analysis ────────────────────────────────────────────────
+class StructureKind(StrEnum):
+    """The root-level layout of an archive."""
+
+    EMPTY = "empty"
+    SINGLE_FILE = "single_file"
+    SINGLE_DIR = "single_dir"
+    MULTI = "multi"
 
 
 @dataclass
 class ArchiveStructure:
-    """Summary of what sits at the root level of an archive."""
+    """
+    Summary of what sits at the root level of an archive.
 
-    # "empty" | "single_file" | "single_dir" | "multi"
-    kind: str
-    # All distinct top-level entry names (without trailing slash)
+    Attributes
+    ----------
+    kind:
+        ``EMPTY``       — archive has no entries.
+        ``SINGLE_FILE`` — exactly one file at the root (no directory wrapper).
+        ``SINGLE_DIR``  — exactly one top-level directory containing the content.
+        ``MULTI``       — multiple items at the root (would "explode" into dest).
+    top_entries:
+        Sorted list of distinct top-level entry names (trailing slashes removed).
+    top_dir:
+        Name of the sole top-level directory (only set when ``kind == SINGLE_DIR``).
+    top_dir_child_count:
+        Number of *direct* children of ``top_dir`` (only set for ``SINGLE_DIR``).
+    """
+
+    kind: StructureKind
     top_entries: list[str] = field(default_factory=list)
-    # For kind == "single_dir": name of that dir
     top_dir: str | None = None
-    # For kind == "single_dir": number of DIRECT children of that dir
     top_dir_child_count: int = 0
 
 
@@ -53,21 +72,21 @@ def analyze_structure(names: list[str]) -> ArchiveStructure:
     entries = sorted(tops.keys())
 
     if not entries:
-        return ArchiveStructure(kind="empty")
+        return ArchiveStructure(kind=StructureKind.EMPTY)
 
     if len(entries) == 1:
         top = entries[0]
         children = tops[top]
         if not children:
-            return ArchiveStructure(kind="single_file", top_entries=entries)
+            return ArchiveStructure(kind=StructureKind.SINGLE_FILE, top_entries=entries)
         return ArchiveStructure(
-            kind="single_dir",
+            kind=StructureKind.SINGLE_DIR,
             top_entries=entries,
             top_dir=top,
             top_dir_child_count=len(children),
         )
 
-    return ArchiveStructure(kind="multi", top_entries=entries)
+    return ArchiveStructure(kind=StructureKind.MULTI, top_entries=entries)
 
 
 def _archive_stem(archive_path: Path) -> str:
@@ -99,7 +118,7 @@ def smart_output_dir(
       the archive's own directory (if any) act as the natural wrapper.
     * **empty**: no-op, returns ``base_output``.
     """
-    if structure.kind == "multi":
+    if structure.kind == StructureKind.MULTI:
         return base_output / _archive_stem(archive_path)
     return base_output
 
@@ -115,7 +134,7 @@ def smart_restructure(output_dir: Path, structure: ArchiveStructure) -> None:
         output_dir/wrapper/only_child/  →  output_dir/only_child/
         output_dir/wrapper/only_file    →  output_dir/only_file
     """
-    if structure.kind != "single_dir" or structure.top_dir_child_count != 1:
+    if structure.kind != StructureKind.SINGLE_DIR or structure.top_dir_child_count != 1:
         return
     if structure.top_dir is None:
         return
@@ -163,7 +182,7 @@ def _default_output_dir(archive_path: Path) -> Path:
 # ── Public extraction entry point ─────────────────────────────────────────────
 
 
-def extract_cjk(
+def extract_archive(
     archive_path: str | os.PathLike,
     password: str,
     output_dir: str | os.PathLike | None = None,
@@ -177,12 +196,12 @@ def extract_cjk(
     smart: bool = True,
 ) -> tuple[bool, str | None]:
     """
-    Extract *archive_path* with CJK password/filename encoding support.
+    Extract *archive_path* with automatic password/filename encoding detection.
 
     Parameters
     ----------
     names:
-        Pre-fetched file list (from a prior :func:`list_cjk` call).  When
+        Pre-fetched file list (from a prior :func:`list_archive` call).  When
         provided together with ``smart=True``, the destination directory is
         adjusted automatically and a pointless wrapper directory may be
         collapsed after extraction.

@@ -7,7 +7,7 @@ from archivetools.formats import detect_handler
 from archivetools.formats.base import ArchiveInfo
 
 
-def list_cjk(
+def list_archive(
     archive_path: str | os.PathLike,
     password: str,
     filename_encoding: str | None = None,

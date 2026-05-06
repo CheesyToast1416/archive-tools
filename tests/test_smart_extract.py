@@ -5,6 +5,7 @@ from pathlib import Path
 
 from archivetools.operations.extract import (
     ArchiveStructure,
+    StructureKind,
     _archive_stem,
     analyze_structure,
     smart_output_dir,
@@ -45,22 +46,24 @@ class TestAnalyzeStructure:
 class TestSmartOutputDir:
     def test_multi_adds_stem(self, tmp_path: Path) -> None:
         archive = tmp_path / "archive.zip"
-        s = ArchiveStructure(kind="multi")
+        s = ArchiveStructure(kind=StructureKind.MULTI)
         assert smart_output_dir(archive, tmp_path, s) == tmp_path / "archive"
 
     def test_single_dir_uses_base(self, tmp_path: Path) -> None:
         archive = tmp_path / "archive.zip"
-        s = ArchiveStructure(kind="single_dir", top_dir="myapp", top_dir_child_count=5)
+        s = ArchiveStructure(
+            kind=StructureKind.SINGLE_DIR, top_dir="myapp", top_dir_child_count=5
+        )
         assert smart_output_dir(archive, tmp_path, s) == tmp_path
 
     def test_single_file_uses_base(self, tmp_path: Path) -> None:
         archive = tmp_path / "archive.zip"
-        s = ArchiveStructure(kind="single_file")
+        s = ArchiveStructure(kind=StructureKind.SINGLE_FILE)
         assert smart_output_dir(archive, tmp_path, s) == tmp_path
 
     def test_tar_gz_stem(self, tmp_path: Path) -> None:
         archive = tmp_path / "myproject.tar.gz"
-        s = ArchiveStructure(kind="multi")
+        s = ArchiveStructure(kind=StructureKind.MULTI)
         assert smart_output_dir(archive, tmp_path, s) == tmp_path / "myproject"
 
 
@@ -85,7 +88,7 @@ class TestSmartRestructure:
         (wrapper / "only.txt").write_text("hello")
 
         s = ArchiveStructure(
-            kind="single_dir", top_dir="wrapper", top_dir_child_count=1
+            kind=StructureKind.SINGLE_DIR, top_dir="wrapper", top_dir_child_count=1
         )
         smart_restructure(tmp_path, s)
 
@@ -99,7 +102,7 @@ class TestSmartRestructure:
         (sub / "file.txt").write_text("x")
 
         s = ArchiveStructure(
-            kind="single_dir", top_dir="wrapper", top_dir_child_count=1
+            kind=StructureKind.SINGLE_DIR, top_dir="wrapper", top_dir_child_count=1
         )
         smart_restructure(tmp_path, s)
 
@@ -113,7 +116,7 @@ class TestSmartRestructure:
         (wrapper / "b.txt").write_text("b")
 
         s = ArchiveStructure(
-            kind="single_dir", top_dir="wrapper", top_dir_child_count=2
+            kind=StructureKind.SINGLE_DIR, top_dir="wrapper", top_dir_child_count=2
         )
         smart_restructure(tmp_path, s)
 
@@ -128,7 +131,7 @@ class TestSmartRestructure:
         (tmp_path / "clash.txt").write_text("pre-existing")  # collision
 
         s = ArchiveStructure(
-            kind="single_dir", top_dir="wrapper", top_dir_child_count=1
+            kind=StructureKind.SINGLE_DIR, top_dir="wrapper", top_dir_child_count=1
         )
         smart_restructure(tmp_path, s)
 
@@ -144,7 +147,7 @@ class TestEndToEnd:
         return path
 
     def test_multi_archive_gets_wrapper(self, tmp_path: Path) -> None:
-        from archivetools.operations.extract import extract_cjk
+        from archivetools.operations.extract import extract_archive
 
         z = self._make_zip(
             tmp_path / "archive.zip",
@@ -153,7 +156,7 @@ class TestEndToEnd:
         dest = tmp_path / "out"
         dest.mkdir()
 
-        ok, _ = extract_cjk(
+        ok, _ = extract_archive(
             z,
             "",
             str(dest),
@@ -168,7 +171,7 @@ class TestEndToEnd:
         assert (dest / "archive" / "b.txt").exists()
 
     def test_single_dir_archive_no_double_wrap(self, tmp_path: Path) -> None:
-        from archivetools.operations.extract import extract_cjk
+        from archivetools.operations.extract import extract_archive
 
         z = self._make_zip(
             tmp_path / "myapp.zip",
@@ -177,7 +180,7 @@ class TestEndToEnd:
         dest = tmp_path / "out"
         dest.mkdir()
 
-        ok, _ = extract_cjk(
+        ok, _ = extract_archive(
             z,
             "",
             str(dest),
@@ -191,7 +194,7 @@ class TestEndToEnd:
         assert (dest / "myapp" / "file1.txt").exists()
 
     def test_single_wrapper_child_unwrapped(self, tmp_path: Path) -> None:
-        from archivetools.operations.extract import extract_cjk
+        from archivetools.operations.extract import extract_archive
 
         z = self._make_zip(
             tmp_path / "release.zip",
@@ -200,7 +203,7 @@ class TestEndToEnd:
         dest = tmp_path / "out"
         dest.mkdir()
 
-        ok, _ = extract_cjk(
+        ok, _ = extract_archive(
             z,
             "",
             str(dest),

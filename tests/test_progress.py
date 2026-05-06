@@ -6,7 +6,7 @@ from pathlib import Path
 
 from archivetools.formats.tar import TarHandler
 from archivetools.formats.zip import ZipHandler
-from archivetools.operations.extract import extract_cjk
+from archivetools.operations.extract import extract_archive
 
 
 def _make_zip(tmp_path: Path, n_files: int = 3) -> Path:
@@ -69,11 +69,11 @@ class TestProgressCallback:
         ok, _ = ZipHandler().extract(archive, "", out)
         assert ok is True
 
-    def test_extract_cjk_progress(self, tmp_path):
+    def test_extract_archive_progress(self, tmp_path):
         archive = _make_zip(tmp_path, n_files=5)
         out = tmp_path / "out"
         calls = []
-        ok, _ = extract_cjk(
+        ok, _ = extract_archive(
             archive,
             "",
             str(out),

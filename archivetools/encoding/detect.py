@@ -82,9 +82,8 @@ def detect_rar_filename_encoding(
                     continue
                 except UnicodeEncodeError:
                     pass
-                # RAR5 filenames are UTF-8 and will decode to non-Latin-1 code
-                # points for CJK; we can't recover the original bytes via Latin-1
-                # re-encoding in that case, so skip them.
+                # RAR5 filenames are UTF-8; they decode to non-Latin-1 code
+                # points, so we can't recover original bytes via re-encoding.
                 try:
                     raw_samples.append(name.encode("latin-1"))
                 except UnicodeEncodeError:

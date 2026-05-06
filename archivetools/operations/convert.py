@@ -6,7 +6,7 @@ import tempfile
 from pathlib import Path
 
 from archivetools.operations.create import create_archive
-from archivetools.operations.extract import extract_cjk
+from archivetools.operations.extract import extract_archive
 
 log = logging.getLogger(__name__)
 
@@ -55,7 +55,7 @@ def convert_archive(
         tmp = Path(tmpdir)
 
         # ── Extract source ────────────────────────────────────────────────────
-        ok, enc = extract_cjk(
+        ok, enc = extract_archive(
             input_path,
             password or "",
             tmp,

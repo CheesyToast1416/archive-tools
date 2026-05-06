@@ -9,9 +9,9 @@ from archivetools.gui.log_handler import GuiLogHandler
 from archivetools.operations import (
     convert_archive,
     create_archive,
-    extract_cjk,
+    extract_archive,
     get_archive_info,
-    list_cjk,
+    list_archive,
     test_archive,
 )
 
@@ -37,7 +37,7 @@ class _BaseWorker(QThread):
 
 
 class ListWorker(_BaseWorker):
-    """Calls list_cjk() in a background thread and emits results via signals."""
+    """Calls list_archive() in a background thread and emits results via signals."""
 
     result = Signal(bool, str, list)
 
@@ -57,7 +57,7 @@ class ListWorker(_BaseWorker):
     def run(self) -> None:
         handler = self._install_log_handler()
         try:
-            ok, enc, names = list_cjk(
+            ok, enc, names = list_archive(
                 self._archive_path,
                 self._password,
                 self._filename_encoding,
@@ -71,7 +71,7 @@ class ListWorker(_BaseWorker):
 
 
 class ExtractionWorker(_BaseWorker):
-    """Calls extract_cjk() in a background thread and emits results via signals."""
+    """Calls extract_archive() in a background thread and emits results via signals."""
 
     result = Signal(bool, str)
     file_progress = Signal(int, int, str)  # current_file, total_files, filename
@@ -97,7 +97,7 @@ class ExtractionWorker(_BaseWorker):
     def run(self) -> None:
         handler = self._install_log_handler()
         try:
-            ok, enc = extract_cjk(
+            ok, enc = extract_archive(
                 self._archive_path,
                 self._password,
                 self._output_dir,
@@ -285,14 +285,14 @@ class BatchExtractionWorker(_BaseWorker):
                 self.archive_started.emit(i)
                 try:
                     # List archive first so smart extraction can pick the right dest.
-                    # list_cjk is a fast header scan (no decompression).
-                    _ok, _enc, names = list_cjk(
+                    # list_archive is a fast header scan (no decompression).
+                    _ok, _enc, names = list_archive(
                         archive_path,
                         self._password,
                         self._filename_encoding,
                         self._password_encoding,
                     )
-                    ok, enc = extract_cjk(
+                    ok, enc = extract_archive(
                         archive_path,
                         self._password,
                         self._output_dir,  # None → extract next to archive

@@ -61,12 +61,12 @@ class ArchiveHandler(ABC):
         bytes_progress: Callable[[int, int], None] | None = None,
     ) -> tuple[bool, str | None]:
         """
-        Try every CJK encoding for *password* and extract *archive_path*
-        into *output_dir* with the first byte sequence that works.
+        Try every password encoding candidate for *password* and extract
+        *archive_path* into *output_dir* with the first byte sequence that works.
         """
         candidates = self._resolve_candidates(password, password_encoding)
         if not candidates:
-            log.error("Could not encode password with any known CJK encoding.")
+            log.error("Could not encode password with any known encoding.")
             return False, None
 
         if verbose:

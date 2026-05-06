@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import zipfile
 
-from archivetools.encoding.candidates import CJK_ENCODINGS, password_candidates
+from archivetools.encoding.candidates import PASSWORD_ENCODINGS, password_candidates
 from archivetools.encoding.detect import (
     detect_filename_encoding,
     detect_rar_filename_encoding,
@@ -35,8 +35,8 @@ class TestPasswordCandidates:
         assert len(byte_values) == len(set(byte_values))
 
     def test_cjk_encodings_order(self):
-        assert CJK_ENCODINGS[0] == "gbk"
-        assert CJK_ENCODINGS[-1] == "utf-8"
+        assert PASSWORD_ENCODINGS[0] == "gbk"
+        assert PASSWORD_ENCODINGS[-1] == "utf-8"
 
 
 class TestDetectFilenameEncoding:
@@ -57,7 +57,7 @@ class TestDetectFilenameEncoding:
         # '密码.txt' encoded as GBK
         gbk_name = "密码.txt".encode("gbk")
         codec, conf = detect_filename_encoding([gbk_name])
-        # charset-normalizer should detect something CJK-compatible
+        # charset-normalizer should detect something compatible with the encoding
         if codec:  # may be None for very short samples
             assert conf >= 0.0
 
