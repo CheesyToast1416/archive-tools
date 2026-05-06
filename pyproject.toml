@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "archivetools"
+version = "0.1.0"
+description = "Extract CJK-encoded password-protected archives (ZIP, RAR, 7z)"
+requires-python = ">=3.11"
+dependencies = [
+    "pyside6>=6.7",
+    "rarfile",
+    "pyzipper",
+    "pycryptodomex",
+    "py7zr",
+]
+
+[project.scripts]
+archivetools = "archivetools.cli:main"
+
+[project.gui-scripts]
+archivetools-gui = "archivetools.gui.app:main"
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+exclude = ["tests*"]
