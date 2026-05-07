@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import os
+
 from PySide6.QtCore import QByteArray
 from PySide6.QtGui import QAction, QDragEnterEvent, QDropEvent
 from PySide6.QtWidgets import (
     QApplication,
+    QFileDialog,
     QHBoxLayout,
     QMainWindow,
     QStackedWidget,
@@ -12,6 +15,12 @@ from PySide6.QtWidgets import (
 
 from archivetools.config.passwords import PasswordStore
 from archivetools.config.settings import AppSettings
+from archivetools.gui.dialogs.about_dialog import (
+    AboutDialog,
+    _find_file,
+    _LicenseDialog,
+    _TextViewerDialog,
+)
 from archivetools.gui.dialogs.settings_dialog import SettingsDialog
 from archivetools.gui.panels.batch_panel import BatchPanel
 from archivetools.gui.panels.convert_panel import ConvertPanel
@@ -93,18 +102,110 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(body)
 
     def _build_menu(self) -> None:
-        file_menu = self.menuBar().addMenu("File")
+        # ── File ──────────────────────────────────────────────────────────────
+        file_menu = self.menuBar().addMenu("&File")
 
-        prefs = QAction("Preferences…", self)
-        prefs.setShortcut("Ctrl+,")
-        prefs.triggered.connect(self._open_settings)
-        file_menu.addAction(prefs)
+        open_act = QAction("&Open Archive…", self)
+        open_act.setShortcut("Ctrl+O")
+        open_act.setStatusTip("Open an archive file")
+        open_act.triggered.connect(self._menu_open_archive)
+        file_menu.addAction(open_act)
+
+        self._recent_menu = file_menu.addMenu("Open &Recent")
+        self._update_recent_menu()
 
         file_menu.addSeparator()
-        quit_action = QAction("Quit", self)
-        quit_action.setShortcut("Ctrl+Q")
-        quit_action.triggered.connect(self.close)
-        file_menu.addAction(quit_action)
+
+        self._close_act = QAction("&Close Archive", self)
+        self._close_act.setShortcut("Ctrl+W")
+        self._close_act.setStatusTip("Close the current archive")
+        self._close_act.setEnabled(False)
+        self._close_act.triggered.connect(self._extract_panel.close_archive)
+        file_menu.addAction(self._close_act)
+
+        file_menu.addSeparator()
+
+        prefs_act = QAction("&Preferences…", self)
+        prefs_act.setShortcut("Ctrl+,")
+        prefs_act.setStatusTip("Open application settings")
+        prefs_act.triggered.connect(self._open_settings)
+        file_menu.addAction(prefs_act)
+
+        file_menu.addSeparator()
+
+        quit_act = QAction("&Quit", self)
+        quit_act.setShortcut("Ctrl+Q")
+        quit_act.triggered.connect(self.close)
+        file_menu.addAction(quit_act)
+
+        # ── Archive ───────────────────────────────────────────────────────────
+        archive_menu = self.menuBar().addMenu("&Archive")
+
+        self._reload_act = QAction("&Reload Contents", self)
+        self._reload_act.setShortcut("F5")
+        self._reload_act.setStatusTip("Re-read the current archive's file list")
+        self._reload_act.setEnabled(False)
+        self._reload_act.triggered.connect(self._menu_reload)
+        archive_menu.addAction(self._reload_act)
+
+        archive_menu.addSeparator()
+
+        self._test_act = QAction("&Test Integrity", self)
+        self._test_act.setShortcut("Ctrl+T")
+        self._test_act.setStatusTip("Verify archive integrity")
+        self._test_act.setEnabled(False)
+        self._test_act.triggered.connect(self._menu_test)
+        archive_menu.addAction(self._test_act)
+
+        self._extract_act = QAction("&Extract…", self)
+        self._extract_act.setShortcut("Ctrl+E")
+        self._extract_act.setStatusTip("Extract archive contents")
+        self._extract_act.setEnabled(False)
+        self._extract_act.triggered.connect(self._menu_extract)
+        archive_menu.addAction(self._extract_act)
+
+        # ── View ──────────────────────────────────────────────────────────────
+        view_menu = self.menuBar().addMenu("&View")
+
+        for idx, (label, shortcut, tip) in enumerate(
+            [
+                ("&Recent", "Ctrl+1", "Show recent archives"),
+                ("&Extract", "Ctrl+2", "Extract panel"),
+                ("&Create", "Ctrl+3", "Create panel"),
+                ("&Batch", "Ctrl+4", "Batch extraction panel"),
+                ("C&onvert", "Ctrl+5", "Format conversion panel"),
+            ]
+        ):
+            act = QAction(label, self)
+            act.setShortcut(shortcut)
+            act.setStatusTip(tip)
+            act.triggered.connect(lambda _checked, i=idx: self._nav_to(i))
+            view_menu.addAction(act)
+
+        view_menu.addSeparator()
+
+        theme_act = QAction("Toggle &Dark Mode", self)
+        theme_act.setShortcut("Ctrl+Shift+D")
+        theme_act.setStatusTip("Switch between light and dark theme")
+        theme_act.triggered.connect(self._on_theme_toggled)
+        view_menu.addAction(theme_act)
+
+        # ── Help ──────────────────────────────────────────────────────────────
+        help_menu = self.menuBar().addMenu("&Help")
+
+        about_act = QAction("&About ArchiveTools", self)
+        about_act.triggered.connect(self._show_about)
+        help_menu.addAction(about_act)
+
+        license_act = QAction("View &License…", self)
+        license_act.setStatusTip("View the GNU General Public License v3.0")
+        license_act.triggered.connect(self._show_license)
+        help_menu.addAction(license_act)
+
+        notices_act = QAction("&Third-Party Notices…", self)
+        notices_act.setStatusTip("View open-source licenses for bundled libraries")
+        notices_act.triggered.connect(self._show_notices)
+        help_menu.addAction(notices_act)
 
     def _wire_signals(self) -> None:
         self._sidebar.page_changed.connect(self._stack.setCurrentIndex)
@@ -122,6 +223,9 @@ class MainWindow(QMainWindow):
         self._recent_panel.open_archive.connect(self._open_from_recent)
         self._recent_panel.cleared.connect(self._clear_recents)
         self._extract_panel.archive_opened.connect(self._add_recent)
+        self._extract_panel.archive_state_changed.connect(
+            self._on_archive_state_changed
+        )
 
     # ── Theme ─────────────────────────────────────────────────────────────────
 
@@ -167,11 +271,74 @@ class MainWindow(QMainWindow):
         self._settings.recent_archives = recents[:15]
         self._settings.save()
         self._recent_panel.refresh(self._settings.recent_archives)
+        self._update_recent_menu()
 
     def _clear_recents(self) -> None:
         self._settings.recent_archives = []
         self._settings.save()
         self._recent_panel.refresh([])
+        self._update_recent_menu()
+
+    def _on_archive_state_changed(
+        self, has_archive: bool, contents_ready: bool
+    ) -> None:  # noqa: E501
+        self._close_act.setEnabled(has_archive)
+        self._reload_act.setEnabled(has_archive)
+        self._test_act.setEnabled(has_archive)
+        self._extract_act.setEnabled(contents_ready)
+
+    def _nav_to(self, idx: int) -> None:
+        self._sidebar.set_active(idx)
+        self._stack.setCurrentIndex(idx)
+
+    def _menu_open_archive(self) -> None:
+        from archivetools.gui.constants import ARCHIVE_FILTER as _F
+
+        path, _ = QFileDialog.getOpenFileName(self, "Open Archive", "", _F)
+        if path:
+            self._open_from_recent(path)
+
+    def _menu_reload(self) -> None:
+        self._nav_to(_NAV_EXTRACT)
+        self._extract_panel.reload()
+
+    def _menu_test(self) -> None:
+        self._nav_to(_NAV_EXTRACT)
+        self._extract_panel.test_integrity()
+
+    def _menu_extract(self) -> None:
+        self._nav_to(_NAV_EXTRACT)
+        self._extract_panel.extract()
+
+    def _update_recent_menu(self) -> None:
+        self._recent_menu.clear()
+        recents = self._settings.recent_archives
+        if not recents:
+            empty_act = QAction("(No recent archives)", self)
+            empty_act.setEnabled(False)
+            self._recent_menu.addAction(empty_act)
+            return
+        for path in recents[:10]:
+            act = QAction(os.path.basename(path), self)
+            act.setToolTip(path)
+            act.setStatusTip(path)
+            act.triggered.connect(lambda _checked, p=path: self._open_from_recent(p))
+            self._recent_menu.addAction(act)
+        self._recent_menu.addSeparator()
+        clear_act = QAction("Clear Recent", self)
+        clear_act.triggered.connect(self._clear_recents)
+        self._recent_menu.addAction(clear_act)
+
+    def _show_about(self) -> None:
+        AboutDialog(self).exec()
+
+    def _show_license(self) -> None:
+        _LicenseDialog(self).exec()
+
+    def _show_notices(self) -> None:
+        _TextViewerDialog(
+            "Third-Party Notices", _find_file("THIRD_PARTY_NOTICES.txt"), self
+        ).exec()
 
     def _on_settings_changed(self) -> None:
         # Re-apply theme if it changed via the Settings dialog

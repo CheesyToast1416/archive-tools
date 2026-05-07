@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from datetime import datetime
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtWidgets import (
     QFileDialog,
     QFrame,
@@ -118,6 +118,10 @@ class _CardGrid(QWidget):
         for card in self._cards:
             card.set_theme(c)
 
+    def minimumSizeHint(self) -> QSize:  # noqa: N802
+        # Return a single-card minimum so QScrollArea can shrink us freely
+        return QSize(_CARD_W, _CARD_H)
+
     def resizeEvent(self, event) -> None:  # noqa: N802
         super().resizeEvent(event)
         self._relayout()
@@ -186,6 +190,7 @@ class RecentPanel(QWidget):
         self._scroll = QScrollArea()
         self._scroll.setWidgetResizable(True)
         self._scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._card_grid = _CardGrid()
         self._scroll.setWidget(self._card_grid)
         outer.addWidget(self._scroll, stretch=1)

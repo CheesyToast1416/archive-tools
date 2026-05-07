@@ -6,6 +6,16 @@ build-backend = "setuptools.build_meta"
 name = "archivetools"
 version = "0.2.0"
 description = "Full-featured archive manager with CJK encoding support (ZIP, RAR, 7z, TAR)"
+readme = "README.md"
+license = {file = "LICENSE.txt"}
+authors = [{name = "CheesyToast1416"}]
+keywords = ["archive", "zip", "rar", "7z", "tar", "cjk", "encoding"]
+classifiers = [
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Programming Language :: Python :: 3",
+    "Environment :: X11 Applications :: Qt",
+    "Topic :: System :: Archiving",
+]
 requires-python = ">=3.11"
 dependencies = [
     "pyside6>=6.7",

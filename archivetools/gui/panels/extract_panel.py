@@ -306,6 +306,8 @@ class ExtractPanel(QWidget):
 
     status_changed = Signal(str)
     archive_opened = Signal(str)
+    # Emitted whenever the (has_archive, contents_ready) state changes
+    archive_state_changed = Signal(bool, bool)
 
     def __init__(
         self,
@@ -993,6 +995,7 @@ class ExtractPanel(QWidget):
         self._clear_info_labels()
         if self._edit_mode:
             self._exit_edit_mode()
+        self.archive_state_changed.emit(has_path, False)
         if has_path:
             self.archive_opened.emit(self._current_path)
             self._start_list()  # auto-list contents immediately
@@ -1110,6 +1113,7 @@ class ExtractPanel(QWidget):
                 f"✓ Preview ready — {len(names)} entries  (encoding: {enc or 'auto'})"
             )
             self.status_changed.emit(f"Preview: {len(names)} entries")
+            self.archive_state_changed.emit(True, True)
             self._run_filename_detection()
         else:
             had_pwd = bool(self._op_password)
@@ -1754,6 +1758,23 @@ class ExtractPanel(QWidget):
         else:
             for i in range(root.childCount()):
                 root.child(i).setExpanded(True)
+
+    # ── Public action entry-points (called from menu bar) ─────────────────────
+
+    def close_archive(self) -> None:
+        self._clear_archive()
+
+    def reload(self) -> None:
+        if self._current_path:
+            self._start_list()
+
+    def extract(self) -> None:
+        if self._preview_valid:
+            self._start_extract()
+
+    def test_integrity(self) -> None:
+        if self._current_path:
+            self._start_test()
 
     def apply_settings(self, settings: AppSettings) -> None:
         self._pwd_encoding_combo.set_codec(settings.default_password_encoding)
