@@ -1,0 +1,7 @@
+<!DOCTYPE RCC>
+<RCC version="1.0">
+    <qresource prefix="/">
+        <file>../LICENSE.txt</file>
+        <file>../THIRD_PARTY_NOTICES.txt</file>
+    </qresource>
+</RCC>

@@ -17,8 +17,8 @@ from archivetools.config.passwords import PasswordStore
 from archivetools.config.settings import AppSettings
 from archivetools.gui.dialogs.about_dialog import (
     AboutDialog,
-    _find_file,
     _LicenseDialog,
+    _read_resource_text,
     _TextViewerDialog,
 )
 from archivetools.gui.dialogs.settings_dialog import SettingsDialog
@@ -337,7 +337,9 @@ class MainWindow(QMainWindow):
 
     def _show_notices(self) -> None:
         _TextViewerDialog(
-            "Third-Party Notices", _find_file("THIRD_PARTY_NOTICES.txt"), self
+            "Third-Party Notices",
+            _read_resource_text(":/THIRD_PARTY_NOTICES.txt"),
+            self,
         ).exec()
 
     def _on_settings_changed(self) -> None:

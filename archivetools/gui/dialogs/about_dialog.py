@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-from pathlib import Path
-
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QFile, QIODevice, Qt, QTextStream
 from PySide6.QtGui import QFontDatabase
 from PySide6.QtWidgets import (
     QDialog,
@@ -15,6 +13,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+import resources.rc_licenses as resources
+
+# Prevent removing unused imports
+print(resources.qt_resource_name.decode("utf-16-be", errors="ignore"))
+
 _APP_NAME = "ArchiveTools"
 _VERSION = "0.2.0"
 _COPYRIGHT = "Copyright © 2025–2026 CheesyToast1416"
@@ -26,13 +29,17 @@ _DESCRIPTION = (
 )
 
 
-def _find_file(name: str) -> str:
-    """Walk up from this file's location to find a named text file."""
-    for parent in Path(__file__).parents:
-        candidate = parent / name
-        if candidate.is_file():
-            return candidate.read_text(encoding="utf-8")
-    return f"{name} not found."
+def _read_resource_text(qrc_path: str) -> str:
+    """Read a text file embedded in Qt's resource system."""
+    file = QFile(qrc_path)
+    # Open as read-only and tell Qt to handle OS-specific line endings (Text mode)
+    if not file.open(QIODevice.OpenModeFlag.ReadOnly | QIODevice.OpenModeFlag.Text):
+        return f"Could not load resource: {qrc_path}"
+
+    stream = QTextStream(file)
+    content = stream.readAll()
+    file.close()
+    return content
 
 
 class _TextViewerDialog(QDialog):
@@ -61,7 +68,7 @@ class _TextViewerDialog(QDialog):
 # Keep the old name as an alias so main_window.py still imports it
 def _LicenseDialog(parent: QWidget | None = None) -> _TextViewerDialog:
     return _TextViewerDialog(
-        f"License — {_LICENSE_SPDX}", _find_file("LICENSE.txt"), parent
+        f"License — {_LICENSE_SPDX}", _read_resource_text(":/LICENSE.txt"), parent
     )
 
 
@@ -147,6 +154,6 @@ class AboutDialog(QDialog):
     def _show_notices(self) -> None:
         _TextViewerDialog(
             "Third-Party Notices",
-            _find_file("THIRD_PARTY_NOTICES.txt"),
+            _read_resource_text(":/THIRD_PARTY_NOTICES.txt"),
             self,
         ).exec()
