@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 import logging
+import os
+import shutil
+import tempfile
 from collections.abc import Sequence
+from pathlib import Path
 
 from PySide6.QtCore import QThread, Signal
 
@@ -13,6 +17,7 @@ from archivetools.operations import (
     get_archive_info,
     list_archive,
     test_archive,
+    update_archive,
 )
 
 _CORE_LOGGER = "archivetools.formats"  # formats/* now owns the log output
@@ -34,6 +39,9 @@ class _BaseWorker(QThread):
     def _remove_log_handler(self, handler: GuiLogHandler) -> None:
         for name in (_CORE_LOGGER, "archivetools.operations"):
             logging.getLogger(name).removeHandler(handler)
+
+
+# ── Read-only workers ───────────────────────────────────────────────────────
 
 
 class ListWorker(_BaseWorker):
@@ -68,6 +76,9 @@ class ListWorker(_BaseWorker):
             self.error.emit(str(exc))
         finally:
             self._remove_log_handler(handler)
+
+
+# ── Write workers ───────────────────────────────────────────────────────────
 
 
 class ExtractionWorker(_BaseWorker):
@@ -212,6 +223,82 @@ class InfoWorker(_BaseWorker):
             self._remove_log_handler(handler)
 
 
+# ── Background / async workers ──────────────────────────────────────────────
+
+
+class PreviewWorker(_BaseWorker):
+    """Extracts a single archive entry to a temp dir for in-app preview."""
+
+    # Emits (tmpdir_to_cleanup, extracted_file_path)
+    result = Signal(str, str)
+
+    def __init__(
+        self,
+        archive_path: str,
+        entry_name: str,
+        password: str,
+        filename_encoding: str | None,
+        password_encoding: str | None = None,
+    ) -> None:
+        super().__init__()
+        self._archive_path = archive_path
+        self._entry_name = entry_name
+        self._password = password
+        self._filename_encoding = filename_encoding
+        self._password_encoding = password_encoding
+
+    def run(self) -> None:
+        tmpdir = tempfile.mkdtemp(prefix="atpreview_")
+        handler = self._install_log_handler()
+        try:
+            # filename_encoding / password_encoding are keyword-only in extract_archive
+            ok, _ = extract_archive(
+                self._archive_path,
+                self._password,
+                tmpdir,
+                filename_encoding=self._filename_encoding,
+                password_encoding=self._password_encoding,
+                smart=False,  # no directory restructuring inside the temp dir
+            )
+            if not ok:
+                shutil.rmtree(tmpdir, ignore_errors=True)
+                self.error.emit("Could not extract entry for preview")
+                return
+            found = self._locate_entry(tmpdir)
+            if found:
+                self.result.emit(tmpdir, found)
+            else:
+                shutil.rmtree(tmpdir, ignore_errors=True)
+                self.error.emit("Extracted file not found in archive")
+        except Exception as exc:  # noqa: BLE001
+            shutil.rmtree(tmpdir, ignore_errors=True)
+            self.error.emit(str(exc))
+        finally:
+            self._remove_log_handler(handler)
+
+    def _locate_entry(self, tmpdir: str) -> str | None:
+        """Find the extracted file matching self._entry_name inside tmpdir."""
+        # 1. Direct match: tmpdir / entry_name
+        direct = Path(tmpdir) / self._entry_name
+        if direct.is_file():
+            return str(direct)
+        # 2. Strip leading ./ (common in tar archives)
+        stripped = Path(tmpdir) / self._entry_name.lstrip("./")
+        if stripped.is_file():
+            return str(stripped)
+        # 3. Basename search (handles encoding / path prefix differences)
+        target = Path(self._entry_name).name
+        for root, _dirs, files in os.walk(tmpdir):
+            for fname in files:
+                if fname == target:
+                    return os.path.join(root, fname)
+        # 4. Last resort: first file found
+        for root, _dirs, files in os.walk(tmpdir):
+            if files:
+                return os.path.join(root, files[0])
+        return None
+
+
 class CreateWorker(_BaseWorker):
     """Runs create_archive() in a background thread."""
 
@@ -250,6 +337,40 @@ class CreateWorker(_BaseWorker):
             self.error.emit(str(exc))
         finally:
             self._remove_log_handler(handler)
+
+
+class UpdateWorker(_BaseWorker):
+    """Calls update_archive() in a background thread."""
+
+    result = Signal(bool)
+
+    def __init__(
+        self,
+        archive_path: str,
+        files_to_add: list[str],
+        paths_to_remove: list[str],
+    ) -> None:
+        super().__init__()
+        self._archive_path = archive_path
+        self._files_to_add = files_to_add
+        self._paths_to_remove = paths_to_remove
+
+    def run(self) -> None:
+        handler = self._install_log_handler()
+        try:
+            ok = update_archive(
+                self._archive_path,
+                files_to_add=self._files_to_add,
+                paths_to_remove=self._paths_to_remove,
+            )
+            self.result.emit(ok)
+        except Exception as exc:  # noqa: BLE001
+            self.error.emit(str(exc))
+        finally:
+            self._remove_log_handler(handler)
+
+
+# ── Batch worker ────────────────────────────────────────────────────────────
 
 
 class BatchExtractionWorker(_BaseWorker):

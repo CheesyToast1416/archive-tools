@@ -63,3 +63,11 @@ class EncodingComboBox(QComboBox):
     def reset_detected(self) -> None:
         """Reset the Auto-detect label to its default text."""
         self.setItemText(0, "Auto-detect")
+
+    def set_codec(self, codec: str) -> None:
+        """Select the item whose data matches *codec* (empty string → index 0)."""
+        for i in range(self.count()):
+            if (self.itemData(i) or "") == codec:
+                self.setCurrentIndex(i)
+                return
+        self.setCurrentIndex(0)

@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 )
 
 from archivetools.config.passwords import PasswordEntry, PasswordStore
+from archivetools.gui.theme import ThemeColors
 
 _COL_LABEL = 0
 _COL_HINT = 1
@@ -104,11 +105,18 @@ class PasswordsPanel(QWidget):
 
     store_changed = Signal()  # emitted after every add / edit / delete
 
-    def __init__(self, store: PasswordStore, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        store: PasswordStore,
+        colors: ThemeColors | None = None,
+        parent: QWidget | None = None,
+    ) -> None:
         super().__init__(parent)
         self._store = store
         self._build_ui()
         self._refresh()
+        if colors is not None:
+            self.set_theme(colors)
 
     # ── UI ────────────────────────────────────────────────────────────────────
 
@@ -126,7 +134,7 @@ class PasswordsPanel(QWidget):
         )
         self._warn_lbl.setWordWrap(True)
         self._warn_lbl.setStyleSheet(
-            "background:#fff3cd;padding:6px;border-radius:4px;"
+            "background:#FFF3CD;color:#664D03;padding:6px;border-radius:4px;"
         )
         self._warn_lbl.setVisible(not self._store.keyring_available)
         outer.addWidget(self._warn_lbl)
@@ -208,6 +216,12 @@ class PasswordsPanel(QWidget):
         self._store.delete(entry.id)
         self._refresh()
         self.store_changed.emit()
+
+    def set_theme(self, c: dict) -> None:
+        self._warn_lbl.setStyleSheet(
+            f"background:{c['warn_bg']};color:{c['warn_text']};"
+            f"padding:6px;border-radius:4px;"
+        )
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 

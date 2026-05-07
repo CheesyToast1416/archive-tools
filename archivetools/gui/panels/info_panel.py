@@ -3,9 +3,9 @@ from __future__ import annotations
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QFormLayout,
-    QGroupBox,
+    QFrame,
+    QHBoxLayout,
     QLabel,
-    QPlainTextEdit,
     QProgressBar,
     QPushButton,
     QVBoxLayout,
@@ -13,14 +13,11 @@ from PySide6.QtWidgets import (
 )
 
 from archivetools.formats.base import ArchiveInfo
+from archivetools.gui.constants import ARCHIVE_FILTER as _ARCHIVE_FILTER
+from archivetools.gui.theme import LIGHT, ThemeColors
 from archivetools.gui.widgets.archive_picker import ArchivePickerWidget
+from archivetools.gui.widgets.log_widget import CollapsibleLog
 from archivetools.gui.workers import InfoWorker
-
-_ARCHIVE_FILTER = (
-    "Archives (*.zip *.rar *.7z *.z01 *.r00 *.001 *.tar *.tar.gz *.tgz "
-    "*.tar.bz2 *.tar.xz);;"
-    "All files (*)"
-)
 
 
 def _fmt_size(n: int) -> str:
@@ -37,55 +34,66 @@ def _fmt_size(n: int) -> str:
 
 
 class InfoPanel(QWidget):
-    """Displays archive metadata: format, file count, sizes, encryption status."""
+    """Displays archive metadata — flat design, collapsible log."""
 
     status_changed = Signal(str)
 
-    def __init__(self, parent=None) -> None:
+    def __init__(self, colors: ThemeColors | None = None, parent=None) -> None:
         super().__init__(parent)
+        self._colors = colors or LIGHT
         self._worker: InfoWorker | None = None
+        self._section_headers: list[QLabel] = []
         self._build_ui()
 
     # ── UI ────────────────────────────────────────────────────────────────────
 
     def _build_ui(self) -> None:
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(8, 8, 8, 8)
-        outer.setSpacing(6)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
 
         self._progress_bar = QProgressBar()
         self._progress_bar.setRange(0, 1)
         self._progress_bar.setValue(1)
         self._progress_bar.setTextVisible(False)
-        self._progress_bar.setFixedHeight(6)
+        self._progress_bar.setFixedHeight(4)
         self._progress_bar.setVisible(False)
-
         outer.addWidget(self._progress_bar)
-        outer.addWidget(self._build_archive_group())
-        outer.addWidget(self._build_details_group())
-        outer.addWidget(self._build_log_group())
-        outer.addStretch()
 
-    def _build_archive_group(self) -> QGroupBox:
-        box = QGroupBox("Archive")
-        layout = QVBoxLayout(box)
+        content = QWidget()
+        cl = QVBoxLayout(content)
+        cl.setContentsMargins(16, 12, 16, 10)
+        cl.setSpacing(0)
+
+        # ── Archive picker ───────────────────────────────────────────────────
+        cl.addWidget(self._section_lbl("ARCHIVE"))
+        cl.addSpacing(4)
         self._archive_picker = ArchivePickerWidget(
             placeholder="Path to archive (or drag & drop)…",
             file_filter=_ARCHIVE_FILTER,
         )
         self._archive_picker.path_changed.connect(self._on_archive_changed)
+        cl.addWidget(self._archive_picker)
+        cl.addSpacing(6)
 
+        action = QHBoxLayout()
+        action.addStretch()
         self._load_btn = QPushButton("Load Info")
         self._load_btn.setEnabled(False)
         self._load_btn.clicked.connect(self._start_load)
+        action.addWidget(self._load_btn)
+        cl.addLayout(action)
+        cl.addSpacing(10)
+        cl.addWidget(self._make_sep())
+        cl.addSpacing(8)
 
-        layout.addWidget(self._archive_picker)
-        layout.addWidget(self._load_btn)
-        return box
+        # ── Details ─────────────────────────────────────────────────────────
+        cl.addWidget(self._section_lbl("ARCHIVE DETAILS"))
+        cl.addSpacing(4)
 
-    def _build_details_group(self) -> QGroupBox:
-        box = QGroupBox("Archive Details")
-        form = QFormLayout(box)
+        form = QFormLayout()
+        form.setSpacing(6)
+        form.setContentsMargins(0, 0, 0, 0)
 
         self._lbl_format = QLabel("—")
         self._lbl_count = QLabel("—")
@@ -95,24 +103,56 @@ class InfoPanel(QWidget):
         self._lbl_encrypted = QLabel("—")
         self._lbl_comment = QLabel("—")
 
-        form.addRow("Format:", self._lbl_format)
-        form.addRow("Files:", self._lbl_count)
-        form.addRow("Compressed:", self._lbl_compressed)
-        form.addRow("Uncompressed:", self._lbl_uncompressed)
-        form.addRow("Ratio:", self._lbl_ratio)
-        form.addRow("Encrypted:", self._lbl_encrypted)
-        form.addRow("Comment:", self._lbl_comment)
-        return box
+        for row_text, val_lbl in [
+            ("Format:", self._lbl_format),
+            ("Files:", self._lbl_count),
+            ("Compressed:", self._lbl_compressed),
+            ("Uncompressed:", self._lbl_uncompressed),
+            ("Ratio:", self._lbl_ratio),
+            ("Encrypted:", self._lbl_encrypted),
+            ("Comment:", self._lbl_comment),
+        ]:
+            form.addRow(row_text, val_lbl)
 
-    def _build_log_group(self) -> QGroupBox:
-        box = QGroupBox("Log")
-        layout = QVBoxLayout(box)
-        self._log_edit = QPlainTextEdit()
-        self._log_edit.setReadOnly(True)
-        self._log_edit.setMaximumBlockCount(500)
-        self._log_edit.setFixedHeight(80)
-        layout.addWidget(self._log_edit)
-        return box
+        cl.addLayout(form)
+        cl.addSpacing(10)
+        cl.addWidget(self._make_sep())
+        cl.addSpacing(6)
+
+        # ── Log ─────────────────────────────────────────────────────────────
+        self._log_widget = CollapsibleLog()
+        cl.addWidget(self._log_widget)
+        cl.addStretch()
+
+        outer.addWidget(content)
+        self.set_theme(self._colors)
+
+    def _section_lbl(self, text: str) -> QLabel:
+        lbl = QLabel(text)
+        self._section_headers.append(lbl)
+        return lbl
+
+    def _make_sep(self) -> QFrame:
+        sep = QFrame()
+        sep.setFrameShape(QFrame.Shape.HLine)
+        sep.setFrameShadow(QFrame.Shadow.Sunken)
+        return sep
+
+    # ── Theme ─────────────────────────────────────────────────────────────────
+
+    def set_theme(self, c: ThemeColors) -> None:
+        self._colors = c
+        for lbl in self._section_headers:
+            lbl.setStyleSheet(
+                f"color:{c['text_dim']};font-size:10px;font-weight:bold;letter-spacing:1px;"
+            )
+        self._load_btn.setStyleSheet(
+            f"QPushButton{{background:{c['accent']};color:white;border:none;"
+            f"border-radius:6px;padding:5px 16px;font-weight:600;}}"
+            f"QPushButton:hover{{background:{c['accent_hover']};}}"
+            f"QPushButton:disabled{{background:{c['accent_disabled_bg']};color:#EEEEEE;}}"
+        )
+        self._log_widget.set_theme(c)
 
     # ── Slots ─────────────────────────────────────────────────────────────────
 
@@ -141,7 +181,7 @@ class InfoPanel(QWidget):
 
     def _on_error(self, msg: str) -> None:
         self._set_busy(False)
-        self._log_edit.appendPlainText(f"✗ {msg}")
+        self._log_widget.append(f"✗ {msg}")
         self.status_changed.emit("Error loading info")
 
     def _on_worker_done(self) -> None:
@@ -173,7 +213,6 @@ class InfoPanel(QWidget):
             self._lbl_comment,
         ):
             lbl.setText("—")
-        self._log_edit.clear()
 
     def _populate(self, info: ArchiveInfo) -> None:
         self._lbl_format.setText(info.format_name)

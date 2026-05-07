@@ -1,19 +1,20 @@
 from __future__ import annotations
 
+import os
+
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QDragEnterEvent, QDropEvent, QFontDatabase
+from PySide6.QtGui import QDragEnterEvent, QDropEvent
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QFileDialog,
     QFormLayout,
-    QGroupBox,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QListWidget,
     QListWidgetItem,
-    QPlainTextEdit,
     QProgressBar,
     QPushButton,
     QSlider,
@@ -23,11 +24,15 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from archivetools.config.passwords import PasswordStore
+from archivetools.config.passwords import PasswordStore, get_password_store
 from archivetools.config.settings import AppSettings
+from archivetools.gui.theme import LIGHT, ThemeColors
 from archivetools.gui.widgets.archive_picker import ArchivePickerWidget
+from archivetools.gui.widgets.log_widget import CollapsibleLog
 from archivetools.gui.widgets.password_picker_btn import PasswordPickerButton
 from archivetools.gui.workers import CreateWorker
+from archivetools.utils.notifications import notify as _notify
+from archivetools.utils.trash import trash_paths
 
 _FORMATS = [
     ("ZIP (no password)", "zip", ".zip", False),
@@ -77,7 +82,7 @@ class _FileList(QListWidget):
 
 
 class CreatePanel(QWidget):
-    """Archive creation UI: output picker, files list, format/options, log."""
+    """Archive creation panel — flat design, collapsible log."""
 
     status_changed = Signal(str)
 
@@ -85,77 +90,83 @@ class CreatePanel(QWidget):
         self,
         settings: AppSettings | None = None,
         store: PasswordStore | None = None,
+        colors: ThemeColors | None = None,
         parent=None,
     ) -> None:
         super().__init__(parent)
+        self._colors = colors or LIGHT
         self._worker: CreateWorker | None = None
         self._store = store
+        self._section_headers: list[QLabel] = []
         self._build_ui()
         self._on_format_changed(0)
         if settings is not None:
             self.apply_settings(settings)
 
-    # ── UI Construction ───────────────────────────────────────────────────────
+    # ── UI ────────────────────────────────────────────────────────────────────
 
     def _build_ui(self) -> None:
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(8, 8, 8, 8)
-        outer.setSpacing(6)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
 
         self._progress_bar = QProgressBar()
         self._progress_bar.setRange(0, 1)
         self._progress_bar.setValue(1)
         self._progress_bar.setTextVisible(False)
-        self._progress_bar.setFixedHeight(6)
+        self._progress_bar.setFixedHeight(4)
         self._progress_bar.setVisible(False)
-
         outer.addWidget(self._progress_bar)
-        outer.addWidget(self._build_output_group())
-        outer.addWidget(self._build_files_group(), stretch=2)
-        outer.addWidget(self._build_options_group())
-        self._trash_after_create = QCheckBox(
-            "Move source files/folders to trash after successful creation"
-        )
-        outer.addWidget(self._trash_after_create)
-        outer.addWidget(self._build_create_button())
-        outer.addWidget(self._build_log_group(), stretch=1)
 
-    def _build_output_group(self) -> QGroupBox:
-        box = QGroupBox("Output Archive")
-        layout = QVBoxLayout(box)
+        content = QWidget()
+        cl = QVBoxLayout(content)
+        cl.setContentsMargins(16, 12, 16, 10)
+        cl.setSpacing(0)
+
+        # ── Output ─────────────────────────────────────────────────────────
+        cl.addWidget(self._section_lbl("OUTPUT"))
+        cl.addSpacing(4)
         self._output_picker = ArchivePickerWidget(
             placeholder="Destination path…",
             file_filter=_SAVE_FILTER,
             save_mode=True,
         )
-        layout.addWidget(self._output_picker)
-        return box
+        cl.addWidget(self._output_picker)
+        cl.addSpacing(10)
+        cl.addWidget(self._make_sep())
+        cl.addSpacing(8)
 
-    def _build_files_group(self) -> QGroupBox:
-        box = QGroupBox("Files to Add  (drag & drop or use buttons below)")
-        layout = QVBoxLayout(box)
-
+        # ── Files ───────────────────────────────────────────────────────────
+        cl.addWidget(self._section_lbl("FILES  —  drag & drop or use buttons"))
+        cl.addSpacing(4)
         self._file_list = _FileList()
         self._file_list.files_dropped.connect(self._add_paths)
-        layout.addWidget(self._file_list)
+        cl.addWidget(self._file_list, stretch=2)
+        cl.addSpacing(4)
 
-        btn_row = QHBoxLayout()
+        file_btns = QHBoxLayout()
+        file_btns.setSpacing(6)
         btn_add_files = QPushButton("Add Files…")
         btn_add_folder = QPushButton("Add Folder…")
         btn_remove = QPushButton("Remove Selected")
         btn_add_files.clicked.connect(self._browse_add_files)
         btn_add_folder.clicked.connect(self._browse_add_folder)
         btn_remove.clicked.connect(self._remove_selected)
-        btn_row.addWidget(btn_add_files)
-        btn_row.addWidget(btn_add_folder)
-        btn_row.addWidget(btn_remove)
-        btn_row.addStretch()
-        layout.addLayout(btn_row)
-        return box
+        file_btns.addWidget(btn_add_files)
+        file_btns.addWidget(btn_add_folder)
+        file_btns.addWidget(btn_remove)
+        file_btns.addStretch()
+        cl.addLayout(file_btns)
+        cl.addSpacing(10)
+        cl.addWidget(self._make_sep())
+        cl.addSpacing(8)
 
-    def _build_options_group(self) -> QGroupBox:
-        box = QGroupBox("Options")
-        form = QFormLayout(box)
+        # ── Options ─────────────────────────────────────────────────────────
+        cl.addWidget(self._section_lbl("OPTIONS"))
+        cl.addSpacing(4)
+        form = QFormLayout()
+        form.setSpacing(6)
+        form.setContentsMargins(0, 0, 0, 0)
 
         self._format_combo = QComboBox()
         for label, *_ in _FORMATS:
@@ -163,10 +174,9 @@ class CreatePanel(QWidget):
         self._format_combo.currentIndexChanged.connect(self._on_format_changed)
         form.addRow("Format:", self._format_combo)
 
-        # Compression slider
         slider_row = QWidget()
-        slider_layout = QHBoxLayout(slider_row)
-        slider_layout.setContentsMargins(0, 0, 0, 0)
+        sl = QHBoxLayout(slider_row)
+        sl.setContentsMargins(0, 0, 0, 0)
         self._compression_slider = QSlider(Qt.Orientation.Horizontal)
         self._compression_slider.setRange(0, 9)
         self._compression_slider.setValue(6)
@@ -176,17 +186,16 @@ class CreatePanel(QWidget):
         self._compression_slider.valueChanged.connect(
             lambda v: self._compression_lbl.setText(str(v))
         )
-        slider_layout.addWidget(self._compression_slider)
-        slider_layout.addWidget(self._compression_lbl)
+        sl.addWidget(self._compression_slider)
+        sl.addWidget(self._compression_lbl)
         self._compression_form_label = QLabel("Compression (0–9):")
         form.addRow(self._compression_form_label, slider_row)
         self._compression_slider_row = slider_row
 
-        # Password
         pwd_row = QWidget()
-        pwd_layout = QHBoxLayout(pwd_row)
-        pwd_layout.setContentsMargins(0, 0, 0, 0)
-        pwd_layout.setSpacing(4)
+        pl = QHBoxLayout(pwd_row)
+        pl.setContentsMargins(0, 0, 0, 0)
+        pl.setSpacing(4)
         self._password_edit = QLineEdit()
         self._password_edit.setEchoMode(QLineEdit.EchoMode.Password)
         self._password_edit.setPlaceholderText("Archive password")
@@ -197,37 +206,68 @@ class CreatePanel(QWidget):
         )
         self._eye_btn.setToolTip("Show / hide password")
         self._eye_btn.toggled.connect(self._toggle_password_visibility)
-        from archivetools.config.passwords import get_password_store
 
         self._pwd_picker = PasswordPickerButton(
             self._store if self._store is not None else get_password_store()
         )
         self._pwd_picker.password_selected.connect(self._password_edit.setText)
-        pwd_layout.addWidget(self._password_edit)
-        pwd_layout.addWidget(self._eye_btn)
-        pwd_layout.addWidget(self._pwd_picker)
+        pl.addWidget(self._password_edit)
+        pl.addWidget(self._eye_btn)
+        pl.addWidget(self._pwd_picker)
         self._password_form_label = QLabel("Password:")
         form.addRow(self._password_form_label, pwd_row)
         self._password_row = pwd_row
 
-        return box
+        cl.addLayout(form)
+        cl.addSpacing(10)
+        cl.addWidget(self._make_sep())
+        cl.addSpacing(6)
 
-    def _build_create_button(self) -> QPushButton:
+        # ── Action bar ──────────────────────────────────────────────────────
+        action = QHBoxLayout()
+        action.setSpacing(8)
+        self._trash_after_create = QCheckBox("Move sources to trash after creation")
+        action.addWidget(self._trash_after_create)
+        action.addStretch()
         self._create_btn = QPushButton("Create Archive")
         self._create_btn.clicked.connect(self._start_create)
-        return self._create_btn
+        action.addWidget(self._create_btn)
+        cl.addLayout(action)
+        cl.addSpacing(6)
 
-    def _build_log_group(self) -> QGroupBox:
-        box = QGroupBox("Log")
-        layout = QVBoxLayout(box)
-        self._log_edit = QPlainTextEdit()
-        self._log_edit.setReadOnly(True)
-        self._log_edit.setMaximumBlockCount(2000)
-        self._log_edit.setFont(
-            QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
+        # ── Log ─────────────────────────────────────────────────────────────
+        self._log_widget = CollapsibleLog()
+        cl.addWidget(self._log_widget)
+
+        outer.addWidget(content)
+        self.set_theme(self._colors)
+
+    def _section_lbl(self, text: str) -> QLabel:
+        lbl = QLabel(text)
+        self._section_headers.append(lbl)
+        return lbl
+
+    def _make_sep(self) -> QFrame:
+        sep = QFrame()
+        sep.setFrameShape(QFrame.Shape.HLine)
+        sep.setFrameShadow(QFrame.Shadow.Sunken)
+        return sep
+
+    # ── Theme ─────────────────────────────────────────────────────────────────
+
+    def set_theme(self, c: ThemeColors) -> None:
+        self._colors = c
+        for lbl in self._section_headers:
+            lbl.setStyleSheet(
+                f"color:{c['text_dim']};font-size:10px;font-weight:bold;letter-spacing:1px;"
+            )
+        self._create_btn.setStyleSheet(
+            f"QPushButton{{background:{c['accent']};color:white;border:none;"
+            f"border-radius:6px;padding:5px 16px;font-weight:600;}}"
+            f"QPushButton:hover{{background:{c['accent_hover']};}}"
+            f"QPushButton:disabled{{background:{c['accent_disabled_bg']};color:#EEEEEE;}}"
         )
-        layout.addWidget(self._log_edit)
-        return box
+        self._log_widget.set_theme(c)
 
     # ── Slots ─────────────────────────────────────────────────────────────────
 
@@ -235,7 +275,6 @@ class CreatePanel(QWidget):
         _, fmt, _ext, supports_password = _FORMATS[index]
         self._password_form_label.setVisible(supports_password)
         self._password_row.setVisible(supports_password)
-        # Hide compression for plain TAR (no compression parameter)
         show_compression = fmt != "tar"
         self._compression_form_label.setVisible(show_compression)
         self._compression_slider_row.setVisible(show_compression)
@@ -307,13 +346,13 @@ class CreatePanel(QWidget):
             self.status_changed.emit("Archive created")
             if self._trash_after_create.isChecked():
                 self._trash_sources()
+
+            _notify("Archive created", os.path.basename(self._output_picker.path))
         else:
             self._log("✗ Archive creation failed.")
             self.status_changed.emit("Creation failed")
 
     def _trash_sources(self) -> None:
-        from archivetools.utils.trash import trash_paths
-
         paths = [
             self._file_list.item(i).text()
             for i in range(self._file_list.count())
@@ -341,7 +380,6 @@ class CreatePanel(QWidget):
         self._pwd_picker.refresh()
 
     def handle_drop(self, path: str) -> None:
-        """Add dropped file/folder to the files list."""
         self._add_paths([path])
 
     def _set_busy(self, busy: bool) -> None:
@@ -355,4 +393,4 @@ class CreatePanel(QWidget):
             self._progress_bar.setVisible(False)
 
     def _log(self, text: str) -> None:
-        self._log_edit.appendPlainText(text)
+        self._log_widget.append(text)

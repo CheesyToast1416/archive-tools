@@ -18,7 +18,11 @@ def main() -> None:
     settings = get_settings()
     store = get_password_store()
 
-    window = MainWindow(settings, store)
+    from archivetools.gui.theme import apply_theme
+
+    colors = apply_theme(app, settings.theme)
+
+    window = MainWindow(settings, store, colors=colors)
     window.show()
 
     sys.exit(app.exec())

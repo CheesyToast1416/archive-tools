@@ -19,29 +19,30 @@ class TestAppSettings:
         assert s.smart_extraction is True
         assert s.trash_after_extract is False
         assert s.default_password_encoding == ""
-        assert s.active_tab == 0
+        assert s.active_nav == 1
+        assert s.recent_archives == []
 
     def test_load_from_file(self, tmp_path: Path) -> None:
         cfg = tmp_path / "settings.json"
         cfg.write_text(
-            json.dumps({"smart_extraction": False, "active_tab": 3}), encoding="utf-8"
+            json.dumps({"smart_extraction": False, "active_nav": 3}), encoding="utf-8"
         )
         with patch("archivetools.config.settings._SETTINGS_PATH", cfg):
             s = AppSettings.load()
         assert s.smart_extraction is False
-        assert s.active_tab == 3
+        assert s.active_nav == 3
         # Unset fields use defaults
         assert s.trash_after_extract is False
 
     def test_load_ignores_unknown_keys(self, tmp_path: Path) -> None:
         cfg = tmp_path / "settings.json"
         cfg.write_text(
-            json.dumps({"unknown_future_key": True, "active_tab": 2}),
+            json.dumps({"unknown_future_key": True, "active_nav": 2}),
             encoding="utf-8",
         )
         with patch("archivetools.config.settings._SETTINGS_PATH", cfg):
             s = AppSettings.load()
-        assert s.active_tab == 2  # known key loaded
+        assert s.active_nav == 2  # known key loaded
         assert not hasattr(s, "unknown_future_key")
 
     def test_load_corrupt_file_returns_defaults(self, tmp_path: Path) -> None:
@@ -58,11 +59,24 @@ class TestAppSettings:
             patch("archivetools.config.settings._SETTINGS_PATH", cfg),
             patch("archivetools.config.settings._CONFIG_DIR", cfg_dir),
         ):
-            s = AppSettings(smart_extraction=False, active_tab=2)
+            s = AppSettings(smart_extraction=False, active_nav=2)
             s.save()
             loaded = AppSettings.load()
         assert loaded.smart_extraction is False
-        assert loaded.active_tab == 2
+        assert loaded.active_nav == 2
+
+    def test_recent_archives_round_trips(self, tmp_path: Path) -> None:
+        cfg = tmp_path / "settings.json"
+        cfg_dir = tmp_path
+        paths = ["/home/user/a.zip", "/home/user/b.rar"]
+        with (
+            patch("archivetools.config.settings._SETTINGS_PATH", cfg),
+            patch("archivetools.config.settings._CONFIG_DIR", cfg_dir),
+        ):
+            s = AppSettings(recent_archives=paths)
+            s.save()
+            loaded = AppSettings.load()
+        assert loaded.recent_archives == paths
 
     def test_get_settings_singleton(self, tmp_path: Path) -> None:
         _reset_for_tests()

@@ -1,15 +1,15 @@
 from __future__ import annotations
 
+import os
+
 from PySide6.QtCore import Signal
-from PySide6.QtGui import QFontDatabase
 from PySide6.QtWidgets import (
     QComboBox,
     QFormLayout,
-    QGroupBox,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QPlainTextEdit,
     QProgressBar,
     QPushButton,
     QStyle,
@@ -18,18 +18,17 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from archivetools.config.passwords import PasswordStore
+from archivetools.config.passwords import PasswordStore, get_password_store
 from archivetools.config.settings import AppSettings
+from archivetools.gui.constants import ARCHIVE_FILTER as _ARCHIVE_FILTER
+from archivetools.gui.theme import LIGHT, ThemeColors
 from archivetools.gui.widgets.archive_picker import ArchivePickerWidget
 from archivetools.gui.widgets.encoding_combo import EncodingComboBox
+from archivetools.gui.widgets.log_widget import CollapsibleLog
 from archivetools.gui.widgets.password_picker_btn import PasswordPickerButton
 from archivetools.gui.workers import ConvertWorker
+from archivetools.utils.notifications import notify as _notify
 
-_ARCHIVE_FILTER = (
-    "Archives (*.zip *.rar *.7z *.z01 *.r00 *.001 *.tar *.tar.gz *.tgz "
-    "*.tar.bz2 *.tar.xz);;"
-    "All files (*)"
-)
 _SAVE_FILTER = (
     "ZIP archive (*.zip);;"
     "7z archive (*.7z);;"
@@ -49,7 +48,7 @@ _OUT_FORMATS = [
 
 
 class ConvertPanel(QWidget):
-    """Re-package an archive from any format to any other supported format."""
+    """Convert an archive from any format to another — flat design, collapsible log."""
 
     status_changed = Signal(str)
 
@@ -57,11 +56,14 @@ class ConvertPanel(QWidget):
         self,
         settings: AppSettings | None = None,
         store: PasswordStore | None = None,
+        colors: ThemeColors | None = None,
         parent=None,
     ) -> None:
         super().__init__(parent)
+        self._colors = colors or LIGHT
         self._worker: ConvertWorker | None = None
         self._store = store
+        self._section_headers: list[QLabel] = []
         self._build_ui()
         self._on_format_changed(0)
         if settings is not None:
@@ -71,40 +73,42 @@ class ConvertPanel(QWidget):
 
     def _build_ui(self) -> None:
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(8, 8, 8, 8)
-        outer.setSpacing(6)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
 
         self._progress_bar = QProgressBar()
         self._progress_bar.setRange(0, 1)
         self._progress_bar.setValue(1)
         self._progress_bar.setTextVisible(False)
-        self._progress_bar.setFixedHeight(6)
+        self._progress_bar.setFixedHeight(4)
         self._progress_bar.setVisible(False)
-
         outer.addWidget(self._progress_bar)
-        outer.addWidget(self._build_source_group())
-        outer.addWidget(self._build_output_group())
-        outer.addWidget(self._build_convert_button())
-        outer.addWidget(self._build_log_group(), stretch=1)
 
-    def _build_source_group(self) -> QGroupBox:
-        box = QGroupBox("Source Archive")
-        form = QFormLayout(box)
+        content = QWidget()
+        cl = QVBoxLayout(content)
+        cl.setContentsMargins(16, 12, 16, 10)
+        cl.setSpacing(0)
+
+        # ── Source ──────────────────────────────────────────────────────────
+        cl.addWidget(self._section_lbl("SOURCE ARCHIVE"))
+        cl.addSpacing(4)
+        src_form = QFormLayout()
+        src_form.setSpacing(6)
+        src_form.setContentsMargins(0, 0, 0, 0)
 
         self._src_picker = ArchivePickerWidget(
             placeholder="Path to source archive (or drag & drop)…",
             file_filter=_ARCHIVE_FILTER,
         )
-        form.addRow("Archive:", self._src_picker)
+        src_form.addRow("Archive:", self._src_picker)
 
-        # Password + eye
-        pwd_row = QWidget()
-        pwd_layout = QHBoxLayout(pwd_row)
-        pwd_layout.setContentsMargins(0, 0, 0, 0)
-        pwd_layout.setSpacing(4)
+        src_pwd_row = QWidget()
+        sp = QHBoxLayout(src_pwd_row)
+        sp.setContentsMargins(0, 0, 0, 0)
+        sp.setSpacing(4)
         self._src_password = QLineEdit()
         self._src_password.setEchoMode(QLineEdit.EchoMode.Password)
-        self._src_password.setPlaceholderText("Source archive password (if any)")
+        self._src_password.setPlaceholderText("Source password (if any)")
         self._src_eye = QToolButton()
         self._src_eye.setCheckable(True)
         self._src_eye.setIcon(
@@ -115,47 +119,50 @@ class ConvertPanel(QWidget):
                 QLineEdit.EchoMode.Normal if checked else QLineEdit.EchoMode.Password
             )
         )
-        pwd_layout.addWidget(self._src_password)
-        from archivetools.config.passwords import get_password_store
-
         self._src_pwd_picker = PasswordPickerButton(
             self._store if self._store is not None else get_password_store()
         )
         self._src_pwd_picker.password_selected.connect(self._src_password.setText)
-        pwd_layout.addWidget(self._src_eye)
-        pwd_layout.addWidget(self._src_pwd_picker)
-        form.addRow("Password:", pwd_row)
+        sp.addWidget(self._src_password)
+        sp.addWidget(self._src_eye)
+        sp.addWidget(self._src_pwd_picker)
+        src_form.addRow("Password:", src_pwd_row)
 
         self._pwd_encoding = EncodingComboBox()
-        form.addRow("Password encoding:", self._pwd_encoding)
+        src_form.addRow("Password encoding:", self._pwd_encoding)
 
         self._fname_encoding = EncodingComboBox()
-        form.addRow("Filename encoding:", self._fname_encoding)
+        src_form.addRow("Filename encoding:", self._fname_encoding)
 
-        return box
+        cl.addLayout(src_form)
+        cl.addSpacing(10)
+        cl.addWidget(self._make_sep())
+        cl.addSpacing(8)
 
-    def _build_output_group(self) -> QGroupBox:
-        box = QGroupBox("Output Archive")
-        form = QFormLayout(box)
+        # ── Output ──────────────────────────────────────────────────────────
+        cl.addWidget(self._section_lbl("OUTPUT ARCHIVE"))
+        cl.addSpacing(4)
+        out_form = QFormLayout()
+        out_form.setSpacing(6)
+        out_form.setContentsMargins(0, 0, 0, 0)
 
         self._fmt_combo = QComboBox()
         for label, *_ in _OUT_FORMATS:
             self._fmt_combo.addItem(label)
         self._fmt_combo.currentIndexChanged.connect(self._on_format_changed)
-        form.addRow("Format:", self._fmt_combo)
+        out_form.addRow("Format:", self._fmt_combo)
 
         self._out_picker = ArchivePickerWidget(
             placeholder="Destination path…",
             file_filter=_SAVE_FILTER,
             save_mode=True,
         )
-        form.addRow("Output path:", self._out_picker)
+        out_form.addRow("Output path:", self._out_picker)
 
-        # Output password (for encrypted formats)
         out_pwd_row = QWidget()
-        out_pwd_layout = QHBoxLayout(out_pwd_row)
-        out_pwd_layout.setContentsMargins(0, 0, 0, 0)
-        out_pwd_layout.setSpacing(4)
+        op = QHBoxLayout(out_pwd_row)
+        op.setContentsMargins(0, 0, 0, 0)
+        op.setSpacing(4)
         self._out_password = QLineEdit()
         self._out_password.setEchoMode(QLineEdit.EchoMode.Password)
         self._out_password.setPlaceholderText("Output archive password")
@@ -169,37 +176,65 @@ class ConvertPanel(QWidget):
                 QLineEdit.EchoMode.Normal if checked else QLineEdit.EchoMode.Password
             )
         )
-        out_pwd_layout.addWidget(self._out_password)
-        from archivetools.config.passwords import get_password_store
-
         self._out_pwd_picker = PasswordPickerButton(
             self._store if self._store is not None else get_password_store()
         )
         self._out_pwd_picker.password_selected.connect(self._out_password.setText)
-        out_pwd_layout.addWidget(self._out_eye)
-        out_pwd_layout.addWidget(self._out_pwd_picker)
+        op.addWidget(self._out_password)
+        op.addWidget(self._out_eye)
+        op.addWidget(self._out_pwd_picker)
         self._out_pwd_label = QLabel("Output password:")
-        form.addRow(self._out_pwd_label, out_pwd_row)
+        out_form.addRow(self._out_pwd_label, out_pwd_row)
         self._out_pwd_row = out_pwd_row
 
-        return box
+        cl.addLayout(out_form)
+        cl.addSpacing(10)
+        cl.addWidget(self._make_sep())
+        cl.addSpacing(6)
 
-    def _build_convert_button(self) -> QPushButton:
+        # ── Action bar ──────────────────────────────────────────────────────
+        action = QHBoxLayout()
+        action.addStretch()
         self._convert_btn = QPushButton("Convert Archive")
         self._convert_btn.clicked.connect(self._start_convert)
-        return self._convert_btn
+        action.addWidget(self._convert_btn)
+        cl.addLayout(action)
+        cl.addSpacing(6)
 
-    def _build_log_group(self) -> QGroupBox:
-        box = QGroupBox("Log")
-        layout = QVBoxLayout(box)
-        self._log_edit = QPlainTextEdit()
-        self._log_edit.setReadOnly(True)
-        self._log_edit.setMaximumBlockCount(2000)
-        self._log_edit.setFont(
-            QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
+        # ── Log ─────────────────────────────────────────────────────────────
+        self._log_widget = CollapsibleLog()
+        cl.addWidget(self._log_widget)
+        cl.addStretch()
+
+        outer.addWidget(content)
+        self.set_theme(self._colors)
+
+    def _section_lbl(self, text: str) -> QLabel:
+        lbl = QLabel(text)
+        self._section_headers.append(lbl)
+        return lbl
+
+    def _make_sep(self) -> QFrame:
+        sep = QFrame()
+        sep.setFrameShape(QFrame.Shape.HLine)
+        sep.setFrameShadow(QFrame.Shadow.Sunken)
+        return sep
+
+    # ── Theme ─────────────────────────────────────────────────────────────────
+
+    def set_theme(self, c: ThemeColors) -> None:
+        self._colors = c
+        for lbl in self._section_headers:
+            lbl.setStyleSheet(
+                f"color:{c['text_dim']};font-size:10px;font-weight:bold;letter-spacing:1px;"
+            )
+        self._convert_btn.setStyleSheet(
+            f"QPushButton{{background:{c['accent']};color:white;border:none;"
+            f"border-radius:6px;padding:5px 16px;font-weight:600;}}"
+            f"QPushButton:hover{{background:{c['accent_hover']};}}"
+            f"QPushButton:disabled{{background:{c['accent_disabled_bg']};color:#EEEEEE;}}"
         )
-        layout.addWidget(self._log_edit)
-        return box
+        self._log_widget.set_theme(c)
 
     # ── Slots ─────────────────────────────────────────────────────────────────
 
@@ -246,6 +281,7 @@ class ConvertPanel(QWidget):
         if ok:
             self._log(f"✓ Conversion complete: {self._out_picker.path}")
             self.status_changed.emit("Conversion complete")
+            _notify("Conversion complete", os.path.basename(self._out_picker.path))
         else:
             self._log("✗ Conversion failed.")
             self.status_changed.emit("Conversion failed")
@@ -261,10 +297,8 @@ class ConvertPanel(QWidget):
     # ── Helpers ───────────────────────────────────────────────────────────────
 
     def apply_settings(self, settings: AppSettings) -> None:
-        from archivetools.gui.dialogs.settings_dialog import _set_combo_codec
-
-        _set_combo_codec(self._pwd_encoding, settings.default_password_encoding)
-        _set_combo_codec(self._fname_encoding, settings.default_filename_encoding)
+        self._pwd_encoding.set_codec(settings.default_password_encoding)
+        self._fname_encoding.set_codec(settings.default_filename_encoding)
 
     def refresh_password_picker(self) -> None:
         self._src_pwd_picker.refresh()
@@ -284,4 +318,4 @@ class ConvertPanel(QWidget):
             self._progress_bar.setVisible(False)
 
     def _log(self, text: str) -> None:
-        self._log_edit.appendPlainText(text)
+        self._log_widget.append(text)

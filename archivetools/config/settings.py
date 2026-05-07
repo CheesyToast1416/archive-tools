@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import asdict, dataclass, fields
+from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 
 log = logging.getLogger(__name__)
@@ -32,10 +32,17 @@ class AppSettings:
     default_password_encoding: str = ""
     default_filename_encoding: str = ""
 
+    # ── Notifications ─────────────────────────────────────────────────────────
+    notifications_enabled: bool = True
+
+    # ── Appearance ────────────────────────────────────────────────────────────
+    theme: str = "system"  # "system" | "light" | "dark"
+
     # ── UI ────────────────────────────────────────────────────────────────────
     last_archive_dir: str = ""
-    active_tab: int = 0
+    active_nav: int = 1  # sidebar index (0=Recent, 1=Extract, …)
     window_geometry: str = ""  # base64-encoded QByteArray from saveGeometry()
+    recent_archives: list = field(default_factory=list)  # list[str], max 15
 
     # ── Persistence ───────────────────────────────────────────────────────────
 

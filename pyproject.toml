@@ -17,6 +17,7 @@ dependencies = [
     "charset-normalizer>=3.0",
     "send2trash",
     "keyring",
+    "plyer",
 ]
 
 [project.scripts]
