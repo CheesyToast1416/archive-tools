@@ -20,7 +20,12 @@ from PySide6.QtWidgets import (
 from archivetools.gui.constants import ARCHIVE_FILTER as _ARCHIVE_FILTER
 from archivetools.gui.theme import LIGHT, ThemeColors
 
-_COLS = 3
+_CARD_W = 148  # fixed card width
+_CARD_H = 110
+_SPACING = 12
+
+
+# ── Archive card ──────────────────────────────────────────────────────────────
 
 
 class _ArchiveCard(QFrame):
@@ -28,11 +33,13 @@ class _ArchiveCard(QFrame):
 
     clicked = Signal(str)
 
-    def __init__(self, path: str, colors: dict, parent: QWidget | None = None) -> None:
+    def __init__(
+        self, path: str, colors: ThemeColors, parent: QWidget | None = None
+    ) -> None:
         super().__init__(parent)
         self._path = path
         self.setObjectName("archiveCard")
-        self.setFixedSize(148, 110)
+        self.setFixedSize(_CARD_W, _CARD_H)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setToolTip(path)
         self._build_ui()
@@ -67,13 +74,11 @@ class _ArchiveCard(QFrame):
 
         self._name_lbl = QLabel(os.path.basename(self._path))
         self._name_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        name_lbl = self._name_lbl
-        name_lbl.setWordWrap(True)
-        layout.addWidget(name_lbl)
+        self._name_lbl.setWordWrap(True)
+        layout.addWidget(self._name_lbl)
 
         try:
-            mtime = os.path.getmtime(self._path)
-            date_str = _format_date(mtime)
+            date_str = _format_date(os.path.getmtime(self._path))
         except OSError:
             date_str = "—"
 
@@ -86,6 +91,55 @@ class _ArchiveCard(QFrame):
         super().mousePressEvent(event)
 
 
+# ── Responsive card grid ──────────────────────────────────────────────────────
+
+
+class _CardGrid(QWidget):
+    """Grid widget that recalculates column count whenever its width changes."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._cards: list[_ArchiveCard] = []
+        self._cols: int = 0
+        self._layout = QGridLayout(self)
+        self._layout.setSpacing(_SPACING)
+        self._layout.setAlignment(
+            Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
+        )
+
+    def set_cards(self, cards: list[_ArchiveCard]) -> None:
+        while self._layout.count():
+            self._layout.takeAt(0)
+        self._cards = cards
+        self._cols = 0  # force relayout
+        self._relayout()
+
+    def theme_cards(self, c: ThemeColors) -> None:
+        for card in self._cards:
+            card.set_theme(c)
+
+    def resizeEvent(self, event) -> None:  # noqa: N802
+        super().resizeEvent(event)
+        self._relayout()
+
+    def _relayout(self) -> None:
+        if not self._cards:
+            return
+        available = self.width() or (_CARD_W + _SPACING) * 3
+        cols = max(1, available // (_CARD_W + _SPACING))
+        if cols == self._cols:
+            return
+        self._cols = cols
+        while self._layout.count():
+            self._layout.takeAt(0)
+        for i, card in enumerate(self._cards):
+            row, col = divmod(i, cols)
+            self._layout.addWidget(card, row, col)
+
+
+# ── Helper ────────────────────────────────────────────────────────────────────
+
+
 def _format_date(ts: float) -> str:
     dt = datetime.fromtimestamp(ts)
     now = datetime.now()
@@ -93,8 +147,7 @@ def _format_date(ts: float) -> str:
     if delta.days == 0:
         hours = int(delta.seconds / 3600)
         if hours == 0:
-            mins = max(1, int(delta.seconds / 60))
-            return f"{mins}m ago"
+            return f"{max(1, int(delta.seconds / 60))}m ago"
         return f"{hours}h ago"
     if delta.days == 1:
         return "Yesterday"
@@ -103,10 +156,14 @@ def _format_date(ts: float) -> str:
     return dt.strftime("%d %b %Y")
 
 
-class RecentPanel(QWidget):
-    """Landing page showing recently opened archives as clickable cards."""
+# ── Panel ─────────────────────────────────────────────────────────────────────
 
-    open_archive = Signal(str)  # emitted with path when a card or Open… is clicked
+
+class RecentPanel(QWidget):
+    """Landing page showing recently opened archives as responsive cards."""
+
+    open_archive = Signal(str)
+    cleared = Signal()  # emitted when the user clears the recent list
     status_changed = Signal(str)
 
     def __init__(
@@ -126,30 +183,28 @@ class RecentPanel(QWidget):
         self._heading_lbl = QLabel("Recent")
         outer.addWidget(self._heading_lbl)
 
-        # Scroll area for cards
         self._scroll = QScrollArea()
         self._scroll.setWidgetResizable(True)
         self._scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-        self._cards_widget = QWidget()
-        self._grid = QGridLayout(self._cards_widget)
-        self._grid.setSpacing(12)
-        self._grid.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
-        self._scroll.setWidget(self._cards_widget)
+        self._card_grid = _CardGrid()
+        self._scroll.setWidget(self._card_grid)
         outer.addWidget(self._scroll, stretch=1)
 
-        # Empty state label (shown when no recents)
         self._empty_lbl = QLabel("No recent archives.\nOpen an archive to get started.")
         self._empty_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         outer.addWidget(self._empty_lbl)
 
-        # Bottom row
         btn_row = QHBoxLayout()
+        self._clear_btn = QPushButton("Clear")
+        self._clear_btn.clicked.connect(self.cleared)
         open_btn = QPushButton("Open Archive…")
-        open_btn.setFixedHeight(32)
         open_btn.clicked.connect(self._browse_open)
+        btn_row.addWidget(self._clear_btn)
         btn_row.addStretch()
         btn_row.addWidget(open_btn)
         outer.addLayout(btn_row)
+
+        self.set_theme(self._colors)
 
     # ── Public ────────────────────────────────────────────────────────────────
 
@@ -159,29 +214,25 @@ class RecentPanel(QWidget):
             f"font-size:22px;font-weight:bold;color:{c['text']};"
         )
         self._empty_lbl.setStyleSheet(f"color:{c['text_secondary']};font-size:13px;")
-        # Re-theme existing cards
-        root = self._grid
-        for i in range(root.count()):
-            item = root.itemAt(i)
-            if item and isinstance(item.widget(), _ArchiveCard):
-                item.widget().set_theme(c)
+        self._card_grid.theme_cards(c)
 
     def refresh(self, paths: list[str]) -> None:
-        """Repopulate the card grid from *paths* (most-recent first)."""
-        while self._grid.count():
-            item = self._grid.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
+        """Repopulate cards from *paths* (most-recent first)."""
+        # Delete old card widgets
+        for card in self._card_grid._cards:
+            card.deleteLater()
 
         has_cards = bool(paths)
         self._scroll.setVisible(has_cards)
         self._empty_lbl.setVisible(not has_cards)
+        self._clear_btn.setVisible(has_cards)
 
-        for i, path in enumerate(paths):
+        cards = []
+        for path in paths:
             card = _ArchiveCard(path, self._colors)
             card.clicked.connect(self.open_archive)
-            row, col = divmod(i, _COLS)
-            self._grid.addWidget(card, row, col)
+            cards.append(card)
+        self._card_grid.set_cards(cards)
 
     # ── Slots ─────────────────────────────────────────────────────────────────
 

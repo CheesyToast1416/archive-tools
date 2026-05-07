@@ -120,6 +120,7 @@ class MainWindow(QMainWindow):
             panel.status_changed.connect(self.statusBar().showMessage)
 
         self._recent_panel.open_archive.connect(self._open_from_recent)
+        self._recent_panel.cleared.connect(self._clear_recents)
         self._extract_panel.archive_opened.connect(self._add_recent)
 
     # ── Theme ─────────────────────────────────────────────────────────────────
@@ -166,6 +167,11 @@ class MainWindow(QMainWindow):
         self._settings.recent_archives = recents[:15]
         self._settings.save()
         self._recent_panel.refresh(self._settings.recent_archives)
+
+    def _clear_recents(self) -> None:
+        self._settings.recent_archives = []
+        self._settings.save()
+        self._recent_panel.refresh([])
 
     def _on_settings_changed(self) -> None:
         # Re-apply theme if it changed via the Settings dialog

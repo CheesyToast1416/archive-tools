@@ -4,21 +4,26 @@ import os
 import shutil
 from pathlib import Path
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QSizeF, Qt, QUrl, Signal
 from PySide6.QtGui import QColor, QFont, QFontDatabase, QPixmap
 from PySide6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
     QFileDialog,
     QFormLayout,
     QFrame,
+    QGraphicsScene,
+    QGraphicsView,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QPlainTextEdit,
     QProgressBar,
     QPushButton,
-    QScrollArea,
+    QSlider,
     QSplitter,
     QStackedWidget,
     QStyle,
@@ -28,6 +33,21 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+try:
+    from PySide6.QtWebEngineWidgets import QWebEngineView
+
+    _HAS_WEBENGINE = True
+except ImportError:
+    _HAS_WEBENGINE = False
+
+try:
+    from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
+    from PySide6.QtMultimediaWidgets import QGraphicsVideoItem
+
+    _HAS_MULTIMEDIA = True
+except ImportError:
+    _HAS_MULTIMEDIA = False
 
 from archivetools.config.passwords import PasswordStore, get_password_store
 from archivetools.config.settings import AppSettings
@@ -87,6 +107,10 @@ _TEXT_EXTS = {
     ".fish",
 }
 
+_PDF_EXTS = {".pdf"}
+_AUDIO_EXTS = {".mp3", ".wav", ".ogg", ".flac", ".aac", ".m4a", ".opus", ".wma"}
+_VIDEO_EXTS = {".mp4", ".mkv", ".avi", ".mov", ".webm", ".m4v", ".flv", ".wmv"}
+
 # Right-pane stack page indices
 _RIGHT_PLACEHOLDER = 0
 _RIGHT_IMAGE = 1
@@ -95,6 +119,94 @@ _RIGHT_UNSUPPORTED = 3
 _RIGHT_LOADING_PREVIEW = 4
 _RIGHT_INFO = 5
 _RIGHT_LOADING_INFO = 6
+_RIGHT_PDF = 7
+_RIGHT_MEDIA = 8
+
+
+# ── Click-to-position slider ──────────────────────────────────────────────────
+
+
+class _ClickSlider(QSlider):
+    """QSlider that jumps to the exact click position instead of paging by a step."""
+
+    def mousePressEvent(self, event) -> None:  # noqa: N802
+        if event.button() == Qt.MouseButton.LeftButton:
+            val = QStyle.sliderValueFromPosition(
+                self.minimum(),
+                self.maximum(),
+                int(event.position().x()),
+                self.width(),
+            )
+            self.setValue(val)
+            self.sliderMoved.emit(val)
+        super().mousePressEvent(event)
+
+
+# ── Scaled image label ────────────────────────────────────────────────────────
+
+
+class _ScaledImageLabel(QLabel):
+    """QLabel that rescales its pixmap to fill available space on every resize."""
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self._source: QPixmap | None = None
+        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.setMinimumSize(1, 1)
+
+    def set_source(self, pixmap: QPixmap) -> None:
+        self._source = pixmap
+        self._rescale()
+
+    def resizeEvent(self, event) -> None:  # noqa: N802
+        super().resizeEvent(event)
+        self._rescale()
+
+    def _rescale(self) -> None:
+        if self._source is None or self._source.isNull():
+            return
+        w, h = self.width(), self.height()
+        if w < 1 or h < 1:
+            return
+        scaled = self._source.scaled(
+            w,
+            h,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+        self.setPixmap(scaled)
+
+
+# ── Scene-graph video view ────────────────────────────────────────────────────
+
+
+class _VideoView(QGraphicsView):
+    """QGraphicsView wrapper for video — avoids native-window sizing/layout bugs."""
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        scene = QGraphicsScene(self)
+        self.setScene(scene)
+        if _HAS_MULTIMEDIA:
+            self._item: QGraphicsVideoItem = QGraphicsVideoItem()
+            scene.addItem(self._item)
+        else:
+            self._item = None  # type: ignore[assignment]
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setFrameShape(QFrame.Shape.NoFrame)
+        self.setStyleSheet("background: black; border: none;")
+        self.setMinimumSize(1, 1)
+
+    def video_item(self):
+        return self._item
+
+    def resizeEvent(self, event) -> None:  # noqa: N802
+        super().resizeEvent(event)
+        w, h = self.width(), self.height()
+        if self._item is not None and w > 0 and h > 0:
+            self._item.setSize(QSizeF(w, h))
+            self.setSceneRect(0, 0, w, h)
 
 
 # ── Drop-zone widget ──────────────────────────────────────────────────────────
@@ -204,9 +316,12 @@ class ExtractPanel(QWidget):
         super().__init__(parent)
         self._colors: ThemeColors = colors or LIGHT
         self._worker: _MainWorker | None = None
-        self._preview_worker: PreviewWorker | None = None
+        self._preview_token: int = 0
+        self._active_preview_workers: set = set()
         self._inspector_worker: InfoWorker | None = None
         self._update_worker: UpdateWorker | None = None
+        self._media_player = None  # set in _build_right_pane if _HAS_MULTIMEDIA
+        self._pdf_view = None  # set in _build_right_pane if _HAS_WEBENGINE
         self._preview_valid = False
         self._preview_names: list[str] = []
         self._preview_tmpdir: str | None = None
@@ -216,6 +331,7 @@ class ExtractPanel(QWidget):
         self._edit_remove: set[str] = set()
         self._edit_add: list[str] = []
         self._current_path: str = ""
+        self._op_password: str = ""  # password used when the current op was started
         self._store = store
         self._option_labels: list[QLabel] = []
         self._build_ui()
@@ -229,7 +345,6 @@ class ExtractPanel(QWidget):
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
 
-        # Slim indeterminate progress bar at very top
         self._progress_bar = QProgressBar()
         self._progress_bar.setRange(0, 1)
         self._progress_bar.setValue(1)
@@ -238,37 +353,24 @@ class ExtractPanel(QWidget):
         self._progress_bar.setVisible(False)
         outer.addWidget(self._progress_bar)
 
-        # Padded content area
         content = QWidget()
         cl = QVBoxLayout(content)
         cl.setContentsMargins(16, 12, 16, 10)
         cl.setSpacing(0)
 
-        # Archive section (drop-zone ↔ archive bar)
+        # ── Zone 1: identify the archive ─────────────────────────────────────
         self._archive_section = QStackedWidget()
         self._drop_zone = _DropZone(self._colors)
         self._drop_zone.file_dropped.connect(self._set_archive_path)
         self._drop_zone.browse_clicked.connect(self._browse_archive)
-        self._archive_section.addWidget(self._drop_zone)  # index 0
-        self._archive_section.addWidget(self._build_archive_bar())  # index 1
+        self._archive_section.addWidget(self._drop_zone)  # 0
+        self._archive_section.addWidget(self._build_archive_bar())  # 1
         cl.addWidget(self._archive_section)
-        cl.addSpacing(10)
-
-        # Compact options strip (two rows, no borders)
-        cl.addWidget(self._build_options_strip())
-        cl.addSpacing(10)
-
-        cl.addWidget(self._make_sep())
-        cl.addSpacing(6)
-
-        # Action bar
-        cl.addWidget(self._build_action_bar())
-        cl.addSpacing(6)
-
+        cl.addSpacing(8)
         cl.addWidget(self._make_sep())
         cl.addSpacing(8)
 
-        # Main content: tree (left) | preview/info (right)
+        # ── Zone 2: explore (tree | preview) — takes all available height ────
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.addWidget(self._build_tree_pane())
         splitter.addWidget(self._build_right_pane())
@@ -277,9 +379,13 @@ class ExtractPanel(QWidget):
         splitter.setSizes([370, 240])
         cl.addWidget(splitter, stretch=1)
 
+        cl.addSpacing(8)
+        cl.addWidget(self._make_sep())
         cl.addSpacing(6)
 
-        # Collapsible log
+        # ── Zone 3: configure & act ───────────────────────────────────────────
+        cl.addWidget(self._build_bottom_strip())
+        cl.addSpacing(4)
         cl.addWidget(self._build_log_section())
 
         outer.addWidget(content)
@@ -319,7 +425,8 @@ class ExtractPanel(QWidget):
         layout.addWidget(clear_btn)
         return bar
 
-    def _build_options_strip(self) -> QWidget:
+    def _build_bottom_strip(self) -> QWidget:
+        """Password + output options, collapsible encodings, and action buttons."""
         strip = QWidget()
         vbox = QVBoxLayout(strip)
         vbox.setContentsMargins(0, 0, 0, 0)
@@ -330,15 +437,21 @@ class ExtractPanel(QWidget):
             self._option_labels.append(lbl)
             return lbl
 
-        # ── Row 1: password + encodings ─────────────────────────────────────
-        row1 = QHBoxLayout()
-        row1.setSpacing(6)
+        def _form() -> QFormLayout:
+            f = QFormLayout()
+            f.setContentsMargins(0, 0, 0, 0)
+            f.setSpacing(6)
+            f.setHorizontalSpacing(8)
+            f.setLabelAlignment(
+                Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+            )
+            f.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
+            return f
 
+        # ── Password ─────────────────────────────────────────────────────────
         self._password_edit = QLineEdit()
         self._password_edit.setEchoMode(QLineEdit.EchoMode.Password)
         self._password_edit.setPlaceholderText("Password")
-        self._password_edit.setFixedWidth(130)
-
         self._eye_btn = QToolButton()
         self._eye_btn.setCheckable(True)
         self._eye_btn.setIcon(
@@ -346,68 +459,65 @@ class ExtractPanel(QWidget):
         )
         self._eye_btn.setToolTip("Show / hide password")
         self._eye_btn.toggled.connect(self._toggle_password_visibility)
-
         self._pwd_picker = PasswordPickerButton(
             self._store if self._store is not None else get_password_store()
         )
         self._pwd_picker.password_selected.connect(self._password_edit.setText)
 
-        self._filename_encoding_combo = EncodingComboBox()
-        self._filename_encoding_combo.setFixedWidth(160)
-        self._pwd_encoding_combo = EncodingComboBox()
-        self._pwd_encoding_combo.setFixedWidth(130)
+        pwd_widget = QWidget()
+        pl = QHBoxLayout(pwd_widget)
+        pl.setContentsMargins(0, 0, 0, 0)
+        pl.setSpacing(4)
+        pl.addWidget(self._password_edit)
+        pl.addWidget(self._eye_btn)
+        pl.addWidget(self._pwd_picker)
 
-        row1.addWidget(_lbl("Password:"))
-        row1.addWidget(self._password_edit)
-        row1.addWidget(self._eye_btn)
-        row1.addWidget(self._pwd_picker)
-        row1.addSpacing(12)
-        row1.addWidget(_lbl("Filename enc:"))
-        row1.addWidget(self._filename_encoding_combo)
-        row1.addSpacing(12)
-        row1.addWidget(_lbl("Pwd enc:"))
-        row1.addWidget(self._pwd_encoding_combo)
-        row1.addStretch()
-
-        # ── Row 2: output dir + trash ────────────────────────────────────────
-        row2 = QHBoxLayout()
-        row2.setSpacing(6)
-
+        # ── Output + trash ────────────────────────────────────────────────────
         self._output_path_edit = QLineEdit()
-        self._output_path_edit.setPlaceholderText(
-            "Output directory (default: next to archive)"
-        )
-
+        self._output_path_edit.setPlaceholderText("Default (next to archive)")
         output_browse = QToolButton()
         output_browse.setIcon(
             self.style().standardIcon(QStyle.StandardPixmap.SP_DirOpenIcon)
         )
         output_browse.setToolTip("Choose output directory")
         output_browse.clicked.connect(self._browse_output)
+        self._trash_after_extract = QCheckBox("Move to trash after extraction")
 
-        self._trash_after_extract = QCheckBox("Move archive to trash after extraction")
-        self._trash_after_extract.setStyleSheet("font-size:12px;")
+        out_widget = QWidget()
+        ol = QHBoxLayout(out_widget)
+        ol.setContentsMargins(0, 0, 0, 0)
+        ol.setSpacing(4)
+        ol.addWidget(self._output_path_edit)
+        ol.addWidget(output_browse)
+        ol.addSpacing(8)
+        ol.addWidget(self._trash_after_extract)
 
-        row2.addWidget(_lbl("Output:"))
-        row2.addWidget(self._output_path_edit, stretch=1)
-        row2.addWidget(output_browse)
-        row2.addSpacing(16)
-        row2.addWidget(self._trash_after_extract)
+        main_form = _form()
+        main_form.addRow(_lbl("Password:"), pwd_widget)
+        main_form.addRow(_lbl("Output:"), out_widget)
+        vbox.addLayout(main_form)
 
-        vbox.addLayout(row1)
-        vbox.addLayout(row2)
-        return strip
+        # ── Advanced (encodings, collapsed by default) ────────────────────────
+        self._advanced_toggle = QPushButton("▸  Advanced")
+        self._advanced_toggle.setFlat(True)
+        self._advanced_toggle.setCheckable(True)
+        self._advanced_toggle.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._advanced_toggle.toggled.connect(self._toggle_advanced)
+        vbox.addWidget(self._advanced_toggle)
 
-    def _build_action_bar(self) -> QWidget:
-        bar = QWidget()
-        layout = QHBoxLayout(bar)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(6)
+        self._advanced_widget = QWidget()
+        self._filename_encoding_combo = EncodingComboBox()
+        self._pwd_encoding_combo = EncodingComboBox()
+        adv_form = _form()
+        adv_form.addRow(_lbl("Filename enc:"), self._filename_encoding_combo)
+        adv_form.addRow(_lbl("Password enc:"), self._pwd_encoding_combo)
+        self._advanced_widget.setLayout(adv_form)
+        self._advanced_widget.setVisible(False)
+        vbox.addWidget(self._advanced_widget)
 
-        # ── Normal-mode buttons ───────────────────────────────────────────────
-        self._load_btn = QPushButton("Load Contents")
-        self._load_btn.setEnabled(False)
-        self._load_btn.clicked.connect(self._start_list)
+        # ── Action bar ────────────────────────────────────────────────────────
+        action = QHBoxLayout()
+        action.setSpacing(6)
 
         self._test_btn = QPushButton("Test")
         self._test_btn.setEnabled(False)
@@ -420,14 +530,7 @@ class ExtractPanel(QWidget):
         self._extract_btn = QPushButton("Extract")
         self._extract_btn.setEnabled(False)
         self._extract_btn.clicked.connect(self._start_extract)
-        self._extract_btn.setStyleSheet(
-            "QPushButton{background:#007AFF;color:white;border:none;"
-            "border-radius:6px;padding:5px 16px;font-weight:600;}"
-            "QPushButton:hover{background:#005CC8;}"
-            "QPushButton:disabled{background:#C0C0C0;color:#EEEEEE;}"
-        )
 
-        # ── Edit-mode buttons (hidden by default) ─────────────────────────────
         self._edit_add_btn = QPushButton("Add Files…")
         self._edit_add_btn.clicked.connect(self._edit_browse_add)
         self._edit_add_btn.setVisible(False)
@@ -440,15 +543,16 @@ class ExtractPanel(QWidget):
         self._edit_save_btn.clicked.connect(self._start_update)
         self._edit_save_btn.setVisible(False)
 
-        layout.addWidget(self._load_btn)
-        layout.addWidget(self._test_btn)
-        layout.addWidget(self._edit_archive_btn)
-        layout.addWidget(self._edit_add_btn)
-        layout.addStretch()
-        layout.addWidget(self._edit_cancel_btn)
-        layout.addWidget(self._edit_save_btn)
-        layout.addWidget(self._extract_btn)
-        return bar
+        action.addWidget(self._test_btn)
+        action.addWidget(self._edit_archive_btn)
+        action.addWidget(self._edit_add_btn)
+        action.addStretch()
+        action.addWidget(self._edit_cancel_btn)
+        action.addWidget(self._edit_save_btn)
+        action.addWidget(self._extract_btn)
+        vbox.addLayout(action)
+
+        return strip
 
     def _build_tree_pane(self) -> QWidget:
         pane = QWidget()
@@ -488,13 +592,16 @@ class ExtractPanel(QWidget):
         header.setSpacing(2)
 
         def _tab_btn(label: str) -> QPushButton:
+            c = self._colors
             btn = QPushButton(label)
             btn.setCheckable(True)
             btn.setFlat(True)
             btn.setStyleSheet(
-                "QPushButton{border:1px solid #CCCCCC;border-radius:4px;"
-                "padding:3px 10px;font-size:12px;background:#F2F2F7;color:#555555;}"
-                "QPushButton:checked{background:#1C1C1E;color:white;border-color:#1C1C1E;}"
+                f"QPushButton{{border:1px solid {c['border']};border-radius:4px;"
+                f"padding:3px 10px;font-size:12px;"
+                f"background:{c['surface']};color:{c['text_secondary']};}}"
+                f"QPushButton:checked{{"
+                f"color:{c['accent']};border-color:{c['accent']};background:{c['surface']};}}"
             )
             return btn
 
@@ -524,13 +631,8 @@ class ExtractPanel(QWidget):
         placeholder.setStyleSheet("color:#AAAAAA;font-size:12px;")
         self._right_stack.addWidget(placeholder)  # 0 _RIGHT_PLACEHOLDER
 
-        self._preview_scroll = QScrollArea()
-        self._preview_scroll.setWidgetResizable(True)
-        self._preview_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-        self._preview_img_label = QLabel()
-        self._preview_img_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._preview_scroll.setWidget(self._preview_img_label)
-        self._right_stack.addWidget(self._preview_scroll)  # 1 _RIGHT_IMAGE
+        self._preview_img_label = _ScaledImageLabel()
+        self._right_stack.addWidget(self._preview_img_label)  # 1 _RIGHT_IMAGE
 
         self._preview_text = QPlainTextEdit()
         self._preview_text.setReadOnly(True)
@@ -556,6 +658,111 @@ class ExtractPanel(QWidget):
         loading_info.setAlignment(Qt.AlignmentFlag.AlignCenter)
         loading_info.setStyleSheet("color:#AAAAAA;font-size:12px;")
         self._right_stack.addWidget(loading_info)  # 6 _RIGHT_LOADING_INFO
+
+        # ── PDF page ──────────────────────────────────────────────────────────
+        if _HAS_WEBENGINE:
+            self._pdf_view = QWebEngineView()
+            self._right_stack.addWidget(self._pdf_view)  # 7 _RIGHT_PDF
+        else:
+            pdf_lbl = QLabel(
+                "PDF preview requires PySide6-WebEngine\n"
+                "(pip install pyside6-addons)"
+            )
+            pdf_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            pdf_lbl.setStyleSheet("color:#AAAAAA;font-size:12px;")
+            self._right_stack.addWidget(pdf_lbl)  # 7 _RIGHT_PDF
+
+        # ── Media page ────────────────────────────────────────────────────────
+        if _HAS_MULTIMEDIA:
+            media_widget = QWidget()
+            media_layout = QVBoxLayout(media_widget)
+            media_layout.setContentsMargins(4, 4, 4, 4)
+            media_layout.setSpacing(4)
+
+            # QGraphicsView wrapper — avoids native-window resize/positioning bugs
+            self._video_view = _VideoView()
+            media_layout.addWidget(self._video_view, stretch=1)
+
+            # Shown instead of the video area for audio-only files
+            self._audio_lbl = QLabel("♫")
+            self._audio_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self._audio_lbl.setStyleSheet("font-size:48px;color:#888888;")
+            self._audio_lbl.setVisible(False)
+            media_layout.addWidget(self._audio_lbl, stretch=1)
+
+            # ── Seek bar ──────────────────────────────────────────────────────
+            self._seek_bar = _ClickSlider(Qt.Orientation.Horizontal)
+            self._seek_bar.setRange(0, 0)
+            self._seek_bar.setEnabled(False)
+            self._seek_bar.sliderMoved.connect(self._on_seek_bar_moved)
+            media_layout.addWidget(self._seek_bar)
+
+            # ── Controls row ──────────────────────────────────────────────────
+            ctrl_row = QHBoxLayout()
+            ctrl_row.setSpacing(4)
+
+            self._media_play_btn = QPushButton("▶")
+            self._media_play_btn.setFixedWidth(30)
+            self._media_play_btn.setEnabled(False)
+            self._media_play_btn.clicked.connect(self._toggle_media_playback)
+
+            self._media_time_lbl = QLabel("—")
+            self._media_time_lbl.setStyleSheet("font-size:11px;color:#888888;")
+
+            self._mute_btn = QToolButton()
+            self._mute_btn.setText("🔊")
+            self._mute_btn.setCheckable(True)
+            self._mute_btn.setToolTip("Mute / unmute")
+            self._mute_btn.toggled.connect(self._on_mute_toggled)
+
+            self._vol_slider = _ClickSlider(Qt.Orientation.Horizontal)
+            self._vol_slider.setRange(0, 100)
+            self._vol_slider.setValue(100)
+            self._vol_slider.setFixedWidth(60)
+            self._vol_slider.setToolTip("Volume")
+            self._vol_slider.valueChanged.connect(self._on_volume_changed)
+
+            self._speed_combo = QComboBox()
+            for _lbl, _rate in (
+                ("0.25×", 0.25),
+                ("0.5×", 0.5),
+                ("0.75×", 0.75),
+                ("1×", 1.0),
+                ("1.25×", 1.25),
+                ("1.5×", 1.5),
+                ("2×", 2.0),
+            ):
+                self._speed_combo.addItem(_lbl, _rate)
+            self._speed_combo.setCurrentIndex(3)  # 1×
+            self._speed_combo.setFixedWidth(66)
+            self._speed_combo.setToolTip("Playback speed")
+            self._speed_combo.currentIndexChanged.connect(self._on_speed_changed)
+
+            ctrl_row.addWidget(self._media_play_btn)
+            ctrl_row.addWidget(self._media_time_lbl, stretch=1)
+            ctrl_row.addWidget(self._mute_btn)
+            ctrl_row.addWidget(self._vol_slider)
+            ctrl_row.addWidget(self._speed_combo)
+            media_layout.addLayout(ctrl_row)
+
+            self._media_player = QMediaPlayer()
+            self._media_audio = QAudioOutput()
+            self._media_player.setAudioOutput(self._media_audio)
+            self._media_player.setVideoOutput(self._video_view.video_item())
+            self._media_player.playbackStateChanged.connect(
+                self._on_media_state_changed
+            )
+            self._media_player.positionChanged.connect(self._on_media_position_changed)
+            self._media_player.durationChanged.connect(self._on_media_duration_changed)
+            self._right_stack.addWidget(media_widget)  # 8 _RIGHT_MEDIA
+        else:
+            media_lbl = QLabel(
+                "Media preview requires PySide6 multimedia modules\n"
+                "(pip install pyside6-addons)"
+            )
+            media_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            media_lbl.setStyleSheet("color:#AAAAAA;font-size:12px;")
+            self._right_stack.addWidget(media_lbl)  # 8 _RIGHT_MEDIA
 
         vbox.addLayout(header)
         vbox.addWidget(self._right_stack, stretch=1)
@@ -662,12 +869,18 @@ class ExtractPanel(QWidget):
         self._archive_dir_lbl.setStyleSheet(
             f"color:{c['text_secondary']};font-size:11px;"
         )
-        # Option strip labels
+        # Option/form labels
         for lbl in self._option_labels:
             lbl.setStyleSheet(f"color:{c['text_secondary']};font-size:12px;")
         # Trash checkbox
         self._trash_after_extract.setStyleSheet(
             f"font-size:12px;color:{c['text_secondary']};"
+        )
+        # Advanced toggle
+        self._advanced_toggle.setStyleSheet(
+            f"QPushButton{{text-align:left;color:{c['text_secondary']};"
+            f"font-size:12px;padding:2px 0;border:none;}}"
+            f"QPushButton:hover{{color:{c['text']};}}"
         )
         # Tree header
         self._contents_header_lbl.setStyleSheet(
@@ -675,14 +888,14 @@ class ExtractPanel(QWidget):
             f"font-weight:bold;letter-spacing:1px;"
         )
         self._entry_count_lbl.setStyleSheet(f"color:{c['text_dim']};font-size:10px;")
-        # Right pane toggle buttons
+        # Right pane toggle buttons — checked: accent text + border, no solid fill
         for btn in (self._right_preview_btn, self._right_info_btn):
             btn.setStyleSheet(
                 f"QPushButton{{border:1px solid {c['border']};border-radius:4px;"
                 f"padding:3px 10px;font-size:12px;"
                 f"background:{c['surface']};color:{c['text_secondary']};}}"
                 f"QPushButton:checked{{"
-                f"background:{c['text']};color:{c['surface']};border-color:{c['text']};}}"
+                f"color:{c['accent']};border-color:{c['accent']};background:{c['surface']};}}"
             )
         self._right_entry_lbl.setStyleSheet(
             f"color:{c['text_secondary']};font-size:11px;"
@@ -754,9 +967,10 @@ class ExtractPanel(QWidget):
     # ── Slots ─────────────────────────────────────────────────────────────────
 
     def _on_archive_changed(self) -> None:
+        self._stop_media()
+        self._preview_token += 1  # discard any in-flight preview results
         has_path = bool(self._current_path)
-        self._load_btn.setEnabled(has_path)
-        self._test_btn.setEnabled(has_path)
+        self._test_btn.setEnabled(False)
         self._extract_btn.setEnabled(False)
         self._edit_archive_btn.setEnabled(False)
         self._preview_valid = False
@@ -774,6 +988,7 @@ class ExtractPanel(QWidget):
             self._exit_edit_mode()
         if has_path:
             self.archive_opened.emit(self._current_path)
+            self._start_list()  # auto-list contents immediately
 
     def _toggle_password_visibility(self, checked: bool) -> None:
         if checked:
@@ -795,6 +1010,7 @@ class ExtractPanel(QWidget):
     def _start_list(self) -> None:
         if not self._current_path:
             return
+        self._op_password = self._password_edit.text()
         self._contents_tree.clear()
         self._entry_count_lbl.setText("")
         self._preview_valid = False
@@ -831,6 +1047,7 @@ class ExtractPanel(QWidget):
     def _start_extract(self) -> None:
         if not self._current_path:
             return
+        self._op_password = self._password_edit.text()
         self._log("─" * 60)
 
         archive_name = os.path.basename(self._current_path)
@@ -888,8 +1105,23 @@ class ExtractPanel(QWidget):
             self.status_changed.emit(f"Preview: {len(names)} entries")
             self._run_filename_detection()
         else:
-            self._log("✗ Could not read archive — check the password.")
-            self.status_changed.emit("Preview failed")
+            had_pwd = bool(self._op_password)
+            if had_pwd:
+                self._log("✗ Wrong password — could not read archive.")
+                self.status_changed.emit("Wrong password")
+            msg = (
+                "Incorrect password.\nEnter the correct password to try again."
+                if had_pwd
+                else "This archive is password-protected.\n"
+                "Enter the password to load its contents."
+            )
+            password = self._prompt_for_password(msg)
+            if password is not None:
+                self._password_edit.setText(password)
+                self._start_list()
+            elif not had_pwd:
+                self._log("✗ Archive requires a password.")
+                self.status_changed.emit("Password required")
 
     def _on_list_error(self, msg: str) -> None:
         self._set_busy(False)
@@ -910,8 +1142,23 @@ class ExtractPanel(QWidget):
                 self._trash_archive()
             _notify("Extraction complete", os.path.basename(self._current_path))
         else:
-            self._log("✗ Extraction failed — see log above for details.")
-            self.status_changed.emit("Extraction failed")
+            had_pwd = bool(self._op_password)
+            if had_pwd:
+                self._log("✗ Wrong password — extraction failed.")
+                self.status_changed.emit("Wrong password")
+            msg = (
+                "Incorrect password.\nEnter the correct password to try again."
+                if had_pwd
+                else "This archive is password-protected.\n"
+                "Enter the password to extract."
+            )
+            password = self._prompt_for_password(msg)
+            if password is not None:
+                self._password_edit.setText(password)
+                self._start_extract()
+            elif not had_pwd:
+                self._log("✗ Archive requires a password.")
+                self.status_changed.emit("Password required")
 
     def _on_test_finished(self, ok: bool, failed: list) -> None:
         self._set_busy(False)
@@ -992,12 +1239,11 @@ class ExtractPanel(QWidget):
             self._right_stack.setCurrentIndex(_RIGHT_PLACEHOLDER)
 
     def _start_preview(self, entry_name: str) -> None:
-        self._cleanup_preview_tmpdir()
+        self._stop_media()
+        self._op_password = self._password_edit.text()
+        self._preview_token += 1
+        token = self._preview_token
         self._right_stack.setCurrentIndex(_RIGHT_LOADING_PREVIEW)
-
-        if self._preview_worker is not None:
-            self._preview_worker.finished.disconnect()
-            self._preview_worker = None
 
         worker = PreviewWorker(
             self._current_path,
@@ -1006,11 +1252,26 @@ class ExtractPanel(QWidget):
             self._filename_encoding_combo.current_codec(),
             self._pwd_encoding_combo.current_codec(),
         )
-        worker.result.connect(self._on_preview_result)
-        worker.error.connect(self._on_preview_error)
+        self._active_preview_workers.add(worker)
+
+        def _on_result(tmpdir: str, file_path: str) -> None:
+            if token == self._preview_token:
+                self._cleanup_preview_tmpdir()
+                self._on_preview_result(tmpdir, file_path)
+            else:
+                shutil.rmtree(tmpdir, ignore_errors=True)
+
+        def _on_error(msg: str) -> None:
+            if token == self._preview_token:
+                self._on_preview_error(msg)
+
+        def _on_done() -> None:
+            self._active_preview_workers.discard(worker)
+
+        worker.result.connect(_on_result)
+        worker.error.connect(_on_error)
         worker.finished.connect(worker.deleteLater)
-        worker.finished.connect(lambda: setattr(self, "_preview_worker", None))
-        self._preview_worker = worker
+        worker.finished.connect(_on_done)
         worker.start()
 
     def _on_preview_result(self, tmpdir: str, file_path: str) -> None:
@@ -1020,13 +1281,7 @@ class ExtractPanel(QWidget):
         if ext in _IMAGE_EXTS:
             pixmap = QPixmap(file_path)
             if not pixmap.isNull():
-                scaled = pixmap.scaled(
-                    800,
-                    600,
-                    Qt.AspectRatioMode.KeepAspectRatio,
-                    Qt.TransformationMode.SmoothTransformation,
-                )
-                self._preview_img_label.setPixmap(scaled)
+                self._preview_img_label.set_source(pixmap)
                 self._right_stack.setCurrentIndex(_RIGHT_IMAGE)
                 return
 
@@ -1040,10 +1295,118 @@ class ExtractPanel(QWidget):
             except OSError:
                 pass
 
+        if ext in _PDF_EXTS:
+            if self._pdf_view is not None:
+                self._pdf_view.setUrl(QUrl.fromLocalFile(file_path))
+            self._right_stack.setCurrentIndex(_RIGHT_PDF)
+            return
+
+        if ext in _AUDIO_EXTS or ext in _VIDEO_EXTS:
+            if self._media_player is not None:
+                is_video = ext in _VIDEO_EXTS
+                self._video_view.setVisible(is_video)
+                self._audio_lbl.setVisible(not is_video)
+                self._seek_bar.setRange(0, 0)
+                self._seek_bar.setValue(0)
+                self._seek_bar.setEnabled(False)
+                self._media_play_btn.setEnabled(False)
+                self._media_play_btn.setText("▶")
+                self._media_time_lbl.setText("—")
+                self._media_player.setSource(QUrl.fromLocalFile(file_path))
+                self._media_player.play()
+            self._right_stack.setCurrentIndex(_RIGHT_MEDIA)
+            return
+
         self._right_stack.setCurrentIndex(_RIGHT_UNSUPPORTED)
 
     def _on_preview_error(self, _msg: str) -> None:
         self._right_stack.setCurrentIndex(_RIGHT_UNSUPPORTED)
+        # Listing succeeded but file extraction failed → content encryption.
+        had_pwd = bool(self._op_password)
+        msg = (
+            "Incorrect password — could not extract the file for preview.\n"
+            "Enter the correct password to try again."
+            if had_pwd
+            else "This archive encrypts file contents.\n"
+            "Enter the password to preview files."
+        )
+        password = self._prompt_for_password(msg)
+        if password is not None:
+            self._password_edit.setText(password)
+            current = self._contents_tree.currentItem()
+            if current:
+                full_path: str = current.data(0, Qt.ItemDataRole.UserRole) or ""
+                if full_path and not full_path.endswith("/"):
+                    self._start_preview(full_path)
+
+    # ── Media ─────────────────────────────────────────────────────────────────
+
+    def _stop_media(self) -> None:
+        if self._media_player is not None:
+            self._media_player.stop()
+
+    def _toggle_media_playback(self) -> None:
+        if not _HAS_MULTIMEDIA or self._media_player is None:
+            return
+        _playing = QMediaPlayer.PlaybackState.PlayingState
+        if self._media_player.playbackState() == _playing:
+            self._media_player.pause()
+        else:
+            self._media_player.play()
+
+    def _on_media_state_changed(self, state) -> None:
+        if not _HAS_MULTIMEDIA or not hasattr(self, "_media_play_btn"):
+            return
+        playing = state == QMediaPlayer.PlaybackState.PlayingState
+        self._media_play_btn.setText("⏸" if playing else "▶")
+
+    def _on_media_duration_changed(self, duration: int) -> None:
+        has_media = duration > 0
+        if hasattr(self, "_seek_bar"):
+            self._seek_bar.setRange(0, duration)
+            self._seek_bar.setEnabled(has_media)
+        if hasattr(self, "_media_play_btn"):
+            self._media_play_btn.setEnabled(has_media)
+
+    def _on_media_position_changed(self, pos: int) -> None:
+        if self._media_player is None:
+            return
+
+        def _fmt(ms: int) -> str:
+            s = ms // 1000
+            return f"{s // 60}:{s % 60:02d}"
+
+        total = self._media_player.duration()
+        if hasattr(self, "_media_time_lbl"):
+            if total > 0:
+                self._media_time_lbl.setText(f"{_fmt(pos)} / {_fmt(total)}")
+            else:
+                self._media_time_lbl.setText(_fmt(pos))
+        if hasattr(self, "_seek_bar") and not self._seek_bar.isSliderDown():
+            self._seek_bar.setValue(pos)
+
+    def _on_seek_bar_moved(self, pos: int) -> None:
+        if self._media_player is not None:
+            self._media_player.setPosition(pos)
+
+    def _on_volume_changed(self, value: int) -> None:
+        if self._media_audio is not None:
+            self._media_audio.setVolume(value / 100.0)
+        # Dragging volume up auto-unmutes
+        if value > 0 and hasattr(self, "_mute_btn") and self._mute_btn.isChecked():
+            self._mute_btn.setChecked(False)
+
+    def _on_mute_toggled(self, muted: bool) -> None:
+        if self._media_audio is not None:
+            self._media_audio.setMuted(muted)
+        if hasattr(self, "_mute_btn"):
+            self._mute_btn.setText("🔇" if muted else "🔊")
+
+    def _on_speed_changed(self, index: int) -> None:
+        if self._media_player is not None and hasattr(self, "_speed_combo"):
+            rate = self._speed_combo.itemData(index)
+            if rate is not None:
+                self._media_player.setPlaybackRate(float(rate))
 
     # ── Info ──────────────────────────────────────────────────────────────────
 
@@ -1095,7 +1458,6 @@ class ExtractPanel(QWidget):
         self._edit_mode = True
         self._edit_remove.clear()
         self._edit_add.clear()
-        self._load_btn.setVisible(False)
         self._test_btn.setVisible(False)
         self._extract_btn.setVisible(False)
         self._edit_archive_btn.setVisible(False)
@@ -1113,7 +1475,6 @@ class ExtractPanel(QWidget):
         self._edit_mode = False
         self._edit_remove.clear()
         self._edit_add.clear()
-        self._load_btn.setVisible(True)
         self._test_btn.setVisible(True)
         self._extract_btn.setVisible(True)
         self._edit_archive_btn.setVisible(True)
@@ -1244,7 +1605,6 @@ class ExtractPanel(QWidget):
 
     def _set_busy(self, busy: bool) -> None:
         has_path = bool(self._current_path)
-        self._load_btn.setEnabled(not busy and has_path)
         self._test_btn.setEnabled(not busy and has_path)
         self._extract_btn.setEnabled(not busy and self._preview_valid)
         self._edit_archive_btn.setEnabled(not busy and self._preview_valid)
@@ -1261,6 +1621,75 @@ class ExtractPanel(QWidget):
         self._log_last_lbl.setText(text[:70])
         if text.startswith("✗") and not self._log_edit.isVisible():
             self._toggle_log()
+
+    def _prompt_for_password(self, message: str) -> str | None:
+        """Modal password-entry dialog. Returns entered text, or None if cancelled."""
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Password Required")
+        dlg.setMinimumWidth(420)
+
+        layout = QVBoxLayout(dlg)
+        layout.setContentsMargins(20, 16, 20, 16)
+        layout.setSpacing(12)
+
+        msg_lbl = QLabel(message)
+        msg_lbl.setWordWrap(True)
+        msg_lbl.setMinimumWidth(380)
+        layout.addWidget(msg_lbl)
+
+        pwd_row = QHBoxLayout()
+        pwd_row.setSpacing(4)
+        pwd_edit = QLineEdit()
+        pwd_edit.setEchoMode(QLineEdit.EchoMode.Password)
+        pwd_edit.setPlaceholderText("Archive password")
+
+        eye = QToolButton()
+        eye.setCheckable(True)
+        eye.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogNoButton))
+        eye.setToolTip("Show / hide")
+
+        def _toggle_eye(on: bool) -> None:
+            pwd_edit.setEchoMode(
+                QLineEdit.EchoMode.Normal if on else QLineEdit.EchoMode.Password
+            )
+            eye.setIcon(
+                self.style().standardIcon(
+                    QStyle.StandardPixmap.SP_DialogYesButton
+                    if on
+                    else QStyle.StandardPixmap.SP_DialogNoButton
+                )
+            )
+
+        eye.toggled.connect(_toggle_eye)
+
+        picker = PasswordPickerButton(
+            self._store if self._store is not None else get_password_store()
+        )
+        picker.password_selected.connect(pwd_edit.setText)
+
+        pwd_row.addWidget(pwd_edit)
+        pwd_row.addWidget(eye)
+        pwd_row.addWidget(picker)
+        layout.addLayout(pwd_row)
+
+        btns = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        btns.accepted.connect(dlg.accept)
+        btns.rejected.connect(dlg.reject)
+        layout.addWidget(btns)
+
+        pwd_edit.returnPressed.connect(dlg.accept)
+        pwd_edit.setFocus()
+        dlg.adjustSize()
+
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            return pwd_edit.text()
+        return None
+
+    def _toggle_advanced(self, checked: bool) -> None:
+        self._advanced_widget.setVisible(checked)
+        self._advanced_toggle.setText("▾  Advanced" if checked else "▸  Advanced")
 
     def _toggle_log(self) -> None:
         visible = not self._log_edit.isVisible()
