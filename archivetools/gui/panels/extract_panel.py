@@ -35,11 +35,12 @@ from PySide6.QtWidgets import (
 )
 
 try:
-    from PySide6.QtWebEngineWidgets import QWebEngineView
+    from PySide6.QtPdf import QPdfDocument
+    from PySide6.QtPdfWidgets import QPdfView
 
-    _HAS_WEBENGINE = True
+    _HAS_PDF = True
 except ImportError:
-    _HAS_WEBENGINE = False
+    _HAS_PDF = False
 
 try:
     from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
@@ -321,7 +322,8 @@ class ExtractPanel(QWidget):
         self._inspector_worker: InfoWorker | None = None
         self._update_worker: UpdateWorker | None = None
         self._media_player = None  # set in _build_right_pane if _HAS_MULTIMEDIA
-        self._pdf_view = None  # set in _build_right_pane if _HAS_WEBENGINE
+        self._pdf_doc = None  # QPdfDocument, set if _HAS_PDF
+        self._pdf_view = None  # QPdfView widget, set if _HAS_PDF
         self._preview_valid = False
         self._preview_names: list[str] = []
         self._preview_tmpdir: str | None = None
@@ -660,12 +662,15 @@ class ExtractPanel(QWidget):
         self._right_stack.addWidget(loading_info)  # 6 _RIGHT_LOADING_INFO
 
         # ── PDF page ──────────────────────────────────────────────────────────
-        if _HAS_WEBENGINE:
-            self._pdf_view = QWebEngineView()
+        if _HAS_PDF:
+            self._pdf_doc = QPdfDocument(self)
+            self._pdf_view = QPdfView(self)
+            self._pdf_view.setDocument(self._pdf_doc)
+            self._pdf_view.setPageMode(QPdfView.PageMode.MultiPage)
             self._right_stack.addWidget(self._pdf_view)  # 7 _RIGHT_PDF
         else:
             pdf_lbl = QLabel(
-                "PDF preview requires PySide6-WebEngine\n"
+                "PDF preview requires PySide6 PDF modules\n"
                 "(pip install pyside6-addons)"
             )
             pdf_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -968,6 +973,8 @@ class ExtractPanel(QWidget):
 
     def _on_archive_changed(self) -> None:
         self._stop_media()
+        if self._pdf_doc is not None:
+            self._pdf_doc.close()
         self._preview_token += 1  # discard any in-flight preview results
         has_path = bool(self._current_path)
         self._test_btn.setEnabled(False)
@@ -1296,8 +1303,9 @@ class ExtractPanel(QWidget):
                 pass
 
         if ext in _PDF_EXTS:
-            if self._pdf_view is not None:
-                self._pdf_view.setUrl(QUrl.fromLocalFile(file_path))
+            if _HAS_PDF and self._pdf_doc is not None:
+                self._pdf_doc.close()
+                self._pdf_doc.load(file_path)
             self._right_stack.setCurrentIndex(_RIGHT_PDF)
             return
 
