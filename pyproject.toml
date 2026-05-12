@@ -56,9 +56,19 @@ line-length = 88
 target-version = "py312"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "N"]
+select = ["E", "F", "I", "UP", "N", "TID"]
 # N802: Qt requires camelCase for event-handler overrides (dragEnterEvent, dropEvent, etc.)
 ignore = ["N802"]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"archivetools.encoding.detect" = {msg = "GUI must use archivetools.operations.detect_archive_encoding instead of importing encoding.detect directly."}
+"archivetools.encoding.candidates" = {msg = "GUI must use the operations layer; do not import encoding internals from GUI code."}
+
+[tool.ruff.lint.per-file-ignores]
+"archivetools/encoding/*.py" = ["TID251"]
+"archivetools/formats/*.py" = ["TID251"]
+"archivetools/operations/*.py" = ["TID251"]
+"tests/*.py" = ["TID251"]
 
 [tool.ruff.format]
 quote-style = "double"

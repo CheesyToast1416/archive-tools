@@ -10,7 +10,12 @@ from archivetools._multivolume import (
     _find_zip_split_parts,
     _rar_first_part,
 )
-from archivetools.formats.base import ArchiveHandler, ArchiveInfo
+from archivetools.formats.base import (
+    ArchiveHandler,
+    ArchiveInfo,
+    PasswordLoopMixin,
+    resolve_password_candidates,
+)
 from archivetools.formats.rar import RarHandler
 from archivetools.formats.sevenzip import SevenZipHandler
 from archivetools.formats.tar import TarHandler
@@ -26,6 +31,8 @@ log = logging.getLogger(__name__)
 __all__ = [
     "ArchiveHandler",
     "ArchiveInfo",
+    "PasswordLoopMixin",
+    "resolve_password_candidates",
     "ZipHandler",
     "ZipHandlerAES",
     "SplitZipHandler",

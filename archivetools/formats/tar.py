@@ -4,7 +4,6 @@ import logging
 import tarfile
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
 
 from archivetools.formats.base import ArchiveHandler, ArchiveInfo
 
@@ -144,13 +143,3 @@ class TarHandler(ArchiveHandler):
                 )
         except Exception:  # noqa: BLE001
             return super().get_info(archive_path)
-
-    def _try_extract(  # type: ignore[override]
-        self, *_: Any, progress: Any = None, bytes_progress: Any = None
-    ) -> bool:
-        raise NotImplementedError("TarHandler uses extract() directly.")
-
-    def _list_names(  # type: ignore[override]
-        self, *_: Any
-    ) -> list[str] | None:
-        raise NotImplementedError("TarHandler uses list_contents() directly.")

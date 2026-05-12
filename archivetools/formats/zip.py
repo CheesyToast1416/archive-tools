@@ -10,12 +10,12 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
-from archivetools.formats.base import ArchiveHandler, ArchiveInfo
+from archivetools.formats.base import ArchiveHandler, ArchiveInfo, PasswordLoopMixin
 
 log = logging.getLogger(__name__)
 
 
-class ZipHandler(ArchiveHandler):
+class ZipHandler(PasswordLoopMixin, ArchiveHandler):
     FORMAT_NAME = "ZIP"
     CAN_CREATE = True
     CAN_ENCRYPT_CREATE = False  # stdlib zipfile cannot encrypt; use ZipHandlerAES

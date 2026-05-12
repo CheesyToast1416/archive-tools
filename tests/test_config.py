@@ -1,4 +1,4 @@
-"""Tests for config.settings and config.passwords (no GUI, no keyring needed)."""
+"""Tests for config.settings, gui.ui_state, and config.passwords."""
 
 from __future__ import annotations
 
@@ -9,6 +9,8 @@ from unittest.mock import patch
 import pytest
 
 from archivetools.config.settings import AppSettings, _reset_for_tests, get_settings
+from archivetools.gui.ui_state import UIState, get_ui_state
+from archivetools.gui.ui_state import _reset_for_tests as _reset_ui_state
 
 # ── AppSettings ───────────────────────────────────────────────────────────────
 
@@ -19,30 +21,27 @@ class TestAppSettings:
         assert s.smart_extraction is True
         assert s.trash_after_extract is False
         assert s.default_password_encoding == ""
-        assert s.active_nav == 1
-        assert s.recent_archives == []
+        assert not hasattr(s, "active_nav")
+        assert not hasattr(s, "recent_archives")
 
     def test_load_from_file(self, tmp_path: Path) -> None:
         cfg = tmp_path / "settings.json"
-        cfg.write_text(
-            json.dumps({"smart_extraction": False, "active_nav": 3}), encoding="utf-8"
-        )
+        cfg.write_text(json.dumps({"smart_extraction": False}), encoding="utf-8")
         with patch("archivetools.config.settings._SETTINGS_PATH", cfg):
             s = AppSettings.load()
         assert s.smart_extraction is False
-        assert s.active_nav == 3
         # Unset fields use defaults
         assert s.trash_after_extract is False
 
     def test_load_ignores_unknown_keys(self, tmp_path: Path) -> None:
         cfg = tmp_path / "settings.json"
         cfg.write_text(
-            json.dumps({"unknown_future_key": True, "active_nav": 2}),
+            json.dumps({"unknown_future_key": True, "smart_extraction": False}),
             encoding="utf-8",
         )
         with patch("archivetools.config.settings._SETTINGS_PATH", cfg):
             s = AppSettings.load()
-        assert s.active_nav == 2  # known key loaded
+        assert s.smart_extraction is False
         assert not hasattr(s, "unknown_future_key")
 
     def test_load_corrupt_file_returns_defaults(self, tmp_path: Path) -> None:
@@ -59,24 +58,10 @@ class TestAppSettings:
             patch("archivetools.config.settings._SETTINGS_PATH", cfg),
             patch("archivetools.config.settings._CONFIG_DIR", cfg_dir),
         ):
-            s = AppSettings(smart_extraction=False, active_nav=2)
+            s = AppSettings(smart_extraction=False)
             s.save()
             loaded = AppSettings.load()
         assert loaded.smart_extraction is False
-        assert loaded.active_nav == 2
-
-    def test_recent_archives_round_trips(self, tmp_path: Path) -> None:
-        cfg = tmp_path / "settings.json"
-        cfg_dir = tmp_path
-        paths = ["/home/user/a.zip", "/home/user/b.rar"]
-        with (
-            patch("archivetools.config.settings._SETTINGS_PATH", cfg),
-            patch("archivetools.config.settings._CONFIG_DIR", cfg_dir),
-        ):
-            s = AppSettings(recent_archives=paths)
-            s.save()
-            loaded = AppSettings.load()
-        assert loaded.recent_archives == paths
 
     def test_get_settings_singleton(self, tmp_path: Path) -> None:
         _reset_for_tests()
@@ -100,6 +85,100 @@ class TestAppSettings:
         ):
             AppSettings().save()
         assert cfg.exists()
+
+
+# ── UIState ───────────────────────────────────────────────────────────────────
+
+
+class TestUIState:
+    def test_defaults(self) -> None:
+        s = UIState()
+        assert s.active_nav == 1
+        assert s.recent_archives == []
+        assert s.theme == "system"
+        assert s.window_geometry == ""
+        assert s.last_archive_dir == ""
+
+    def test_load_from_file(self, tmp_path: Path) -> None:
+        cfg = tmp_path / "ui_state.json"
+        cfg.write_text(json.dumps({"active_nav": 3, "theme": "dark"}), encoding="utf-8")
+        with patch("archivetools.gui.ui_state._UI_STATE_PATH", cfg):
+            s = UIState.load()
+        assert s.active_nav == 3
+        assert s.theme == "dark"
+
+    def test_load_ignores_unknown_keys(self, tmp_path: Path) -> None:
+        cfg = tmp_path / "ui_state.json"
+        cfg.write_text(
+            json.dumps({"unknown_future_key": True, "active_nav": 2}),
+            encoding="utf-8",
+        )
+        with patch("archivetools.gui.ui_state._UI_STATE_PATH", cfg):
+            s = UIState.load()
+        assert s.active_nav == 2
+        assert not hasattr(s, "unknown_future_key")
+
+    def test_load_corrupt_file_returns_defaults(self, tmp_path: Path) -> None:
+        cfg = tmp_path / "ui_state.json"
+        cfg.write_bytes(b"not valid json {{")
+        with patch("archivetools.gui.ui_state._UI_STATE_PATH", cfg):
+            s = UIState.load()
+        assert s == UIState()
+
+    def test_save_round_trips(self, tmp_path: Path) -> None:
+        cfg = tmp_path / "ui_state.json"
+        cfg_dir = tmp_path
+        with (
+            patch("archivetools.gui.ui_state._UI_STATE_PATH", cfg),
+            patch("archivetools.gui.ui_state._CONFIG_DIR", cfg_dir),
+        ):
+            s = UIState(active_nav=2)
+            s.save()
+            loaded = UIState.load()
+        assert loaded.active_nav == 2
+
+    def test_recent_archives_round_trips(self, tmp_path: Path) -> None:
+        cfg = tmp_path / "ui_state.json"
+        cfg_dir = tmp_path
+        paths = ["/home/user/a.zip", "/home/user/b.rar"]
+        with (
+            patch("archivetools.gui.ui_state._UI_STATE_PATH", cfg),
+            patch("archivetools.gui.ui_state._CONFIG_DIR", cfg_dir),
+        ):
+            s = UIState(recent_archives=paths)
+            s.save()
+            loaded = UIState.load()
+        assert loaded.recent_archives == paths
+
+    def test_get_ui_state_singleton(self, tmp_path: Path) -> None:
+        _reset_ui_state()
+        cfg = tmp_path / "ui_state.json"
+        cfg_dir = tmp_path
+        with (
+            patch("archivetools.gui.ui_state._UI_STATE_PATH", cfg),
+            patch("archivetools.gui.ui_state._CONFIG_DIR", cfg_dir),
+        ):
+            a = get_ui_state()
+            b = get_ui_state()
+        assert a is b
+        _reset_ui_state()
+
+    def test_migration_from_legacy_settings(self, tmp_path: Path) -> None:
+        legacy_cfg = tmp_path / "settings.json"
+        legacy_cfg.write_text(
+            json.dumps({"smart_extraction": False, "active_nav": 4, "theme": "dark"}),
+            encoding="utf-8",
+        )
+        ui_cfg = tmp_path / "ui_state.json"
+        with (
+            patch("archivetools.gui.ui_state._UI_STATE_PATH", ui_cfg),
+            patch("archivetools.gui.ui_state._LEGACY_SETTINGS_PATH", legacy_cfg),
+            patch("archivetools.gui.ui_state._CONFIG_DIR", tmp_path),
+        ):
+            s = UIState.load()
+        assert s.active_nav == 4
+        assert s.theme == "dark"
+        assert ui_cfg.exists()  # migration wrote the new file
 
 
 # ── PasswordStore (mocked keyring) ───────────────────────────────────────────

@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from archivetools.config.passwords import PasswordStore, get_password_store
+from archivetools.config.passwords import PasswordStore, get_or_create_store
 from archivetools.config.settings import AppSettings
 from archivetools.gui.constants import ARCHIVE_FILTER as _ARCHIVE_FILTER
 from archivetools.gui.theme import LIGHT, ThemeColors
@@ -170,9 +170,7 @@ class BatchPanel(QWidget):
         )
         self._eye_btn.setToolTip("Show / hide password")
         self._eye_btn.toggled.connect(self._toggle_password_visibility)
-        self._pwd_picker = PasswordPickerButton(
-            self._store if self._store is not None else get_password_store()
-        )
+        self._pwd_picker = PasswordPickerButton(get_or_create_store(self._store))
         self._pwd_picker.password_selected.connect(self._password_edit.setText)
         pl.addWidget(self._password_edit)
         pl.addWidget(self._eye_btn)

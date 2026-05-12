@@ -24,8 +24,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from archivetools.config.passwords import PasswordStore, get_password_store
+from archivetools.config.passwords import PasswordStore, get_or_create_store
 from archivetools.config.settings import AppSettings
+from archivetools.gui.constants import ARCHIVE_FORMATS as _FORMATS
 from archivetools.gui.theme import LIGHT, ThemeColors
 from archivetools.gui.widgets.archive_picker import ArchivePickerWidget
 from archivetools.gui.widgets.log_widget import CollapsibleLog
@@ -33,16 +34,6 @@ from archivetools.gui.widgets.password_picker_btn import PasswordPickerButton
 from archivetools.gui.workers import CreateWorker
 from archivetools.utils.notifications import notify as _notify
 from archivetools.utils.trash import trash_paths
-
-_FORMATS = [
-    ("ZIP (no password)", "zip", ".zip", False),
-    ("ZIP (AES-256 encrypted)", "zip-aes", ".zip", True),
-    ("7z", "7z", ".7z", True),
-    ("TAR (.tar)", "tar", ".tar", False),
-    ("TAR.GZ (.tar.gz)", "tar.gz", ".tar.gz", False),
-    ("TAR.BZ2 (.tar.bz2)", "tar.bz2", ".tar.bz2", False),
-    ("TAR.XZ (.tar.xz)", "tar.xz", ".tar.xz", False),
-]
 
 _SAVE_FILTER = (
     "ZIP archive (*.zip);;"
@@ -207,9 +198,7 @@ class CreatePanel(QWidget):
         self._eye_btn.setToolTip("Show / hide password")
         self._eye_btn.toggled.connect(self._toggle_password_visibility)
 
-        self._pwd_picker = PasswordPickerButton(
-            self._store if self._store is not None else get_password_store()
-        )
+        self._pwd_picker = PasswordPickerButton(get_or_create_store(self._store))
         self._pwd_picker.password_selected.connect(self._password_edit.setText)
         pl.addWidget(self._password_edit)
         pl.addWidget(self._eye_btn)

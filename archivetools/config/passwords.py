@@ -217,6 +217,11 @@ def get_password_store() -> PasswordStore:
     return _instance
 
 
+def get_or_create_store(store: PasswordStore | None = None) -> PasswordStore:
+    """Return *store* if provided, otherwise return the application singleton."""
+    return store if store is not None else get_password_store()
+
+
 def _reset_for_tests() -> None:
     global _instance
     _instance = None

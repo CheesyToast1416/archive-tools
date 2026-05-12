@@ -5,7 +5,11 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from archivetools.formats.base import ArchiveHandler, ArchiveInfo
+from archivetools.formats.base import (
+    ArchiveHandler,
+    ArchiveInfo,
+    resolve_password_candidates,
+)
 
 log = logging.getLogger(__name__)
 
@@ -38,23 +42,13 @@ class SevenZipHandler(ArchiveHandler):
                 result.append((s, label))
 
         _add(password, "utf-8 (str)")
-        for raw, enc in self._resolve_candidates(password, password_encoding):
+        for raw, enc in resolve_password_candidates(password, password_encoding):
             try:
                 proxy = raw.decode("latin-1")
                 _add(proxy, f"{enc}→latin-1 proxy")
             except Exception:  # noqa: BLE001
                 pass
         return result
-
-    def _try_extract(  # type: ignore[override]
-        self, *args: Any, progress: Any = None, bytes_progress: Any = None, **kw: Any
-    ) -> bool:
-        raise NotImplementedError("Use extract() directly for 7z archives.")
-
-    def _list_names(  # type: ignore[override]
-        self, *args: Any, **kwargs: Any
-    ) -> list[str] | None:
-        raise NotImplementedError("Use list_contents() directly for 7z archives.")
 
     def extract(
         self,

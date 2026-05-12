@@ -5,3 +5,15 @@ ARCHIVE_FILTER = (
     "*.tar.bz2 *.tar.xz);;"
     "All files (*)"
 )
+
+# Authoritative format list for archive creation and conversion.
+# Columns: (display_label, format_key, file_extension, supports_password)
+ARCHIVE_FORMATS: list[tuple[str, str, str, bool]] = [
+    ("ZIP (no password)", "zip", ".zip", False),
+    ("ZIP (AES-256 encrypted)", "zip-aes", ".zip", True),
+    ("7z", "7z", ".7z", True),
+    ("TAR (.tar)", "tar", ".tar", False),
+    ("TAR.GZ (.tar.gz)", "tar.gz", ".tar.gz", False),
+    ("TAR.BZ2 (.tar.bz2)", "tar.bz2", ".tar.bz2", False),
+    ("TAR.XZ (.tar.xz)", "tar.xz", ".tar.xz", False),
+]

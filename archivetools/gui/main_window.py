@@ -28,6 +28,7 @@ from archivetools.gui.panels.create_panel import CreatePanel
 from archivetools.gui.panels.extract_panel import ExtractPanel
 from archivetools.gui.panels.recent_panel import RecentPanel
 from archivetools.gui.theme import LIGHT, ThemeColors, apply_theme, resolve
+from archivetools.gui.ui_state import UIState
 from archivetools.gui.widgets.sidebar import Sidebar
 
 _NAV_RECENT = 0
@@ -44,31 +45,33 @@ class MainWindow(QMainWindow):
         self,
         settings: AppSettings | None = None,
         store: PasswordStore | None = None,
+        ui_state: UIState | None = None,
         colors: ThemeColors | None = None,
     ) -> None:
         super().__init__()
         self._settings = settings or AppSettings()
         self._store = store
+        self._ui_state: UIState = ui_state or UIState()
         self._colors: ThemeColors = colors or LIGHT
 
         self.setWindowTitle("ArchiveTools")
         self.setMinimumSize(780, 620)
         self.setAcceptDrops(True)
 
-        if self._settings.window_geometry:
+        if self._ui_state.window_geometry:
             self.restoreGeometry(
-                QByteArray.fromBase64(self._settings.window_geometry.encode())
+                QByteArray.fromBase64(self._ui_state.window_geometry.encode())
             )
 
         self._build_ui()
         self._build_menu()
         self._wire_signals()
 
-        nav = max(0, min(self._settings.active_nav, _NAV_CONVERT))
+        nav = max(0, min(self._ui_state.active_nav, _NAV_CONVERT))
         self._sidebar.set_active(nav)
         self._stack.setCurrentIndex(nav)
 
-        self._recent_panel.refresh(self._settings.recent_archives)
+        self._recent_panel.refresh(self._ui_state.recent_archives)
 
         self.statusBar().showMessage("Ready")
 
@@ -230,10 +233,10 @@ class MainWindow(QMainWindow):
     # ── Theme ─────────────────────────────────────────────────────────────────
 
     def _on_theme_toggled(self) -> None:
-        current = resolve(self._settings.theme)
+        current = resolve(self._ui_state.theme)
         new_name = "light" if current["is_dark"] else "dark"
-        self._settings.theme = new_name
-        self._settings.save()
+        self._ui_state.theme = new_name
+        self._ui_state.save()
         app = QApplication.instance()
         colors = apply_theme(app, new_name)
         self.set_theme(colors)
@@ -264,18 +267,18 @@ class MainWindow(QMainWindow):
     def _add_recent(self, path: str) -> None:
         if not path:
             return
-        recents: list[str] = list(self._settings.recent_archives)
+        recents: list[str] = list(self._ui_state.recent_archives)
         if path in recents:
             recents.remove(path)
         recents.insert(0, path)
-        self._settings.recent_archives = recents[:15]
-        self._settings.save()
-        self._recent_panel.refresh(self._settings.recent_archives)
+        self._ui_state.recent_archives = recents[:15]
+        self._ui_state.save()
+        self._recent_panel.refresh(self._ui_state.recent_archives)
         self._update_recent_menu()
 
     def _clear_recents(self) -> None:
-        self._settings.recent_archives = []
-        self._settings.save()
+        self._ui_state.recent_archives = []
+        self._ui_state.save()
         self._recent_panel.refresh([])
         self._update_recent_menu()
 
@@ -312,7 +315,7 @@ class MainWindow(QMainWindow):
 
     def _update_recent_menu(self) -> None:
         self._recent_menu.clear()
-        recents = self._settings.recent_archives
+        recents = self._ui_state.recent_archives
         if not recents:
             empty_act = QAction("(No recent archives)", self)
             empty_act.setEnabled(False)
@@ -343,8 +346,8 @@ class MainWindow(QMainWindow):
         ).exec()
 
     def _on_settings_changed(self) -> None:
-        # Re-apply theme if it changed via the Settings dialog
-        new_colors = apply_theme(QApplication.instance(), self._settings.theme)
+        # Re-apply theme in case it changed (theme lives in ui_state, not settings)
+        new_colors = apply_theme(QApplication.instance(), self._ui_state.theme)
         if new_colors is not self._colors:
             self.set_theme(new_colors)
         for panel in (
@@ -368,8 +371,9 @@ class MainWindow(QMainWindow):
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
     def closeEvent(self, event) -> None:  # noqa: N802
-        self._settings.active_nav = self._sidebar.current_index()
-        self._settings.window_geometry = self.saveGeometry().toBase64().data().decode()
+        self._ui_state.active_nav = self._sidebar.current_index()
+        self._ui_state.window_geometry = self.saveGeometry().toBase64().data().decode()
+        self._ui_state.save()
         self._settings.save()
         super().closeEvent(event)
 

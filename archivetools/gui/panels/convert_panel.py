@@ -18,9 +18,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from archivetools.config.passwords import PasswordStore, get_password_store
+from archivetools.config.passwords import PasswordStore, get_or_create_store
 from archivetools.config.settings import AppSettings
 from archivetools.gui.constants import ARCHIVE_FILTER as _ARCHIVE_FILTER
+from archivetools.gui.constants import ARCHIVE_FORMATS as _ARCHIVE_FORMATS
 from archivetools.gui.theme import LIGHT, ThemeColors
 from archivetools.gui.widgets.archive_picker import ArchivePickerWidget
 from archivetools.gui.widgets.encoding_combo import EncodingComboBox
@@ -36,15 +37,7 @@ _SAVE_FILTER = (
     "All files (*)"
 )
 
-_OUT_FORMATS = [
-    ("ZIP (no password)", "zip", False),
-    ("ZIP (AES-256 encrypted)", "zip-aes", True),
-    ("7z", "7z", True),
-    ("TAR (.tar)", "tar", False),
-    ("TAR.GZ (.tar.gz)", "tar.gz", False),
-    ("TAR.BZ2 (.tar.bz2)", "tar.bz2", False),
-    ("TAR.XZ (.tar.xz)", "tar.xz", False),
-]
+_OUT_FORMATS = [(lbl, key, pwd) for lbl, key, _, pwd in _ARCHIVE_FORMATS]
 
 
 class ConvertPanel(QWidget):
@@ -119,9 +112,7 @@ class ConvertPanel(QWidget):
                 QLineEdit.EchoMode.Normal if checked else QLineEdit.EchoMode.Password
             )
         )
-        self._src_pwd_picker = PasswordPickerButton(
-            self._store if self._store is not None else get_password_store()
-        )
+        self._src_pwd_picker = PasswordPickerButton(get_or_create_store(self._store))
         self._src_pwd_picker.password_selected.connect(self._src_password.setText)
         sp.addWidget(self._src_password)
         sp.addWidget(self._src_eye)
@@ -176,9 +167,7 @@ class ConvertPanel(QWidget):
                 QLineEdit.EchoMode.Normal if checked else QLineEdit.EchoMode.Password
             )
         )
-        self._out_pwd_picker = PasswordPickerButton(
-            self._store if self._store is not None else get_password_store()
-        )
+        self._out_pwd_picker = PasswordPickerButton(get_or_create_store(self._store))
         self._out_pwd_picker.password_selected.connect(self._out_password.setText)
         op.addWidget(self._out_password)
         op.addWidget(self._out_eye)

@@ -2,64 +2,38 @@ from __future__ import annotations
 
 import os
 import shutil
-from pathlib import Path
 
-from PySide6.QtCore import QSizeF, Qt, QUrl, Signal
-from PySide6.QtGui import QColor, QFont, QFontDatabase, QPixmap
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QFontDatabase
 from PySide6.QtWidgets import (
-    QButtonGroup,
     QCheckBox,
-    QComboBox,
     QDialog,
-    QDialogButtonBox,
     QFileDialog,
     QFormLayout,
     QFrame,
-    QGraphicsScene,
-    QGraphicsView,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QPlainTextEdit,
     QProgressBar,
     QPushButton,
-    QSlider,
     QSplitter,
     QStackedWidget,
     QStyle,
     QToolButton,
-    QTreeWidget,
-    QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
 )
 
-try:
-    from PySide6.QtPdf import QPdfDocument
-    from PySide6.QtPdfWidgets import QPdfView
-
-    _HAS_PDF = True
-except ImportError:
-    _HAS_PDF = False
-
-try:
-    from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
-    from PySide6.QtMultimediaWidgets import QGraphicsVideoItem
-
-    _HAS_MULTIMEDIA = True
-except ImportError:
-    _HAS_MULTIMEDIA = False
-
-from archivetools.config.passwords import PasswordStore, get_password_store
+from archivetools.config.passwords import PasswordStore, get_or_create_store
 from archivetools.config.settings import AppSettings
-from archivetools.encoding.detect import (
-    detect_rar_filename_encoding,
-    detect_zip_filename_encoding,
-)
 from archivetools.gui.constants import ARCHIVE_FILTER as _ARCHIVE_FILTER
+from archivetools.gui.dialogs.password_prompt_dialog import PasswordPromptDialog
 from archivetools.gui.theme import LIGHT, ThemeColors
+from archivetools.gui.widgets.archive_tree import ArchiveTreeWidget
 from archivetools.gui.widgets.encoding_combo import EncodingComboBox
 from archivetools.gui.widgets.password_picker_btn import PasswordPickerButton
+from archivetools.gui.widgets.preview_pane import PreviewPane
 from archivetools.gui.widgets.progress_dialog import ExtractionProgressDialog
 from archivetools.gui.workers import (
     ExtractionWorker,
@@ -69,145 +43,11 @@ from archivetools.gui.workers import (
     TestWorker,
     UpdateWorker,
 )
+from archivetools.operations import detect_archive_encoding
 from archivetools.utils.notifications import notify as _notify
 from archivetools.utils.trash import move_to_trash
 
 _MainWorker = ListWorker | ExtractionWorker | TestWorker
-
-_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".ico", ".tiff"}
-_TEXT_EXTS = {
-    ".txt",
-    ".md",
-    ".py",
-    ".js",
-    ".ts",
-    ".css",
-    ".html",
-    ".xml",
-    ".json",
-    ".yaml",
-    ".yml",
-    ".toml",
-    ".ini",
-    ".cfg",
-    ".conf",
-    ".log",
-    ".sh",
-    ".bash",
-    ".diff",
-    ".patch",
-    ".rst",
-    ".csv",
-    ".c",
-    ".h",
-    ".cpp",
-    ".java",
-    ".rb",
-    ".go",
-    ".zsh",
-    ".fish",
-}
-
-_PDF_EXTS = {".pdf"}
-_AUDIO_EXTS = {".mp3", ".wav", ".ogg", ".flac", ".aac", ".m4a", ".opus", ".wma"}
-_VIDEO_EXTS = {".mp4", ".mkv", ".avi", ".mov", ".webm", ".m4v", ".flv", ".wmv"}
-
-# Right-pane stack page indices
-_RIGHT_PLACEHOLDER = 0
-_RIGHT_IMAGE = 1
-_RIGHT_TEXT = 2
-_RIGHT_UNSUPPORTED = 3
-_RIGHT_LOADING_PREVIEW = 4
-_RIGHT_INFO = 5
-_RIGHT_LOADING_INFO = 6
-_RIGHT_PDF = 7
-_RIGHT_MEDIA = 8
-
-
-# ── Click-to-position slider ──────────────────────────────────────────────────
-
-
-class _ClickSlider(QSlider):
-    """QSlider that jumps to the exact click position instead of paging by a step."""
-
-    def mousePressEvent(self, event) -> None:  # noqa: N802
-        if event.button() == Qt.MouseButton.LeftButton:
-            val = QStyle.sliderValueFromPosition(
-                self.minimum(),
-                self.maximum(),
-                int(event.position().x()),
-                self.width(),
-            )
-            self.setValue(val)
-            self.sliderMoved.emit(val)
-        super().mousePressEvent(event)
-
-
-# ── Scaled image label ────────────────────────────────────────────────────────
-
-
-class _ScaledImageLabel(QLabel):
-    """QLabel that rescales its pixmap to fill available space on every resize."""
-
-    def __init__(self, parent=None) -> None:
-        super().__init__(parent)
-        self._source: QPixmap | None = None
-        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.setMinimumSize(1, 1)
-
-    def set_source(self, pixmap: QPixmap) -> None:
-        self._source = pixmap
-        self._rescale()
-
-    def resizeEvent(self, event) -> None:  # noqa: N802
-        super().resizeEvent(event)
-        self._rescale()
-
-    def _rescale(self) -> None:
-        if self._source is None or self._source.isNull():
-            return
-        w, h = self.width(), self.height()
-        if w < 1 or h < 1:
-            return
-        scaled = self._source.scaled(
-            w,
-            h,
-            Qt.AspectRatioMode.KeepAspectRatio,
-            Qt.TransformationMode.SmoothTransformation,
-        )
-        self.setPixmap(scaled)
-
-
-# ── Scene-graph video view ────────────────────────────────────────────────────
-
-
-class _VideoView(QGraphicsView):
-    """QGraphicsView wrapper for video — avoids native-window sizing/layout bugs."""
-
-    def __init__(self, parent=None) -> None:
-        super().__init__(parent)
-        scene = QGraphicsScene(self)
-        self.setScene(scene)
-        if _HAS_MULTIMEDIA:
-            self._item: QGraphicsVideoItem = QGraphicsVideoItem()
-            scene.addItem(self._item)
-        else:
-            self._item = None  # type: ignore[assignment]
-        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.setFrameShape(QFrame.Shape.NoFrame)
-        self.setStyleSheet("background: black; border: none;")
-        self.setMinimumSize(1, 1)
-
-    def video_item(self):
-        return self._item
-
-    def resizeEvent(self, event) -> None:  # noqa: N802
-        super().resizeEvent(event)
-        w, h = self.width(), self.height()
-        if self._item is not None and w > 0 and h > 0:
-            self._item.setSize(QSizeF(w, h))
-            self.setSceneRect(0, 0, w, h)
 
 
 # ── Drop-zone widget ──────────────────────────────────────────────────────────
@@ -323,17 +163,10 @@ class ExtractPanel(QWidget):
         self._active_preview_workers: set = set()
         self._inspector_worker: InfoWorker | None = None
         self._update_worker: UpdateWorker | None = None
-        self._media_player = None  # set in _build_right_pane if _HAS_MULTIMEDIA
-        self._pdf_doc = None  # QPdfDocument, set if _HAS_PDF
-        self._pdf_view = None  # QPdfView widget, set if _HAS_PDF
         self._preview_valid = False
         self._preview_names: list[str] = []
         self._preview_tmpdir: str | None = None
-        self._archive_info_cache = None
         self._progress_dialog: ExtractionProgressDialog | None = None
-        self._edit_mode = False
-        self._edit_remove: set[str] = set()
-        self._edit_add: list[str] = []
         self._current_path: str = ""
         self._op_password: str = ""  # password used when the current op was started
         self._store = store
@@ -375,9 +208,19 @@ class ExtractPanel(QWidget):
         cl.addSpacing(8)
 
         # ── Zone 2: explore (tree | preview) — takes all available height ────
+        self._tree_widget = ArchiveTreeWidget(self._colors)
+        self._tree_widget.entry_selected.connect(self._on_entry_selected)
+        self._tree_widget.edit_mode_changed.connect(self._on_edit_mode_changed)
+        self._tree_widget.entries_modified.connect(self._on_entries_modified)
+        self._tree_widget.status_message.connect(self._log)
+
+        self._preview_pane = PreviewPane(self._colors)
+        self._preview_pane.info_requested.connect(self._on_info_requested)
+        self._preview_pane.preview_requested.connect(self._start_preview)
+
         splitter = QSplitter(Qt.Orientation.Horizontal)
-        splitter.addWidget(self._build_tree_pane())
-        splitter.addWidget(self._build_right_pane())
+        splitter.addWidget(self._tree_widget)
+        splitter.addWidget(self._preview_pane)
         splitter.setStretchFactor(0, 3)
         splitter.setStretchFactor(1, 2)
         splitter.setSizes([370, 240])
@@ -463,9 +306,7 @@ class ExtractPanel(QWidget):
         )
         self._eye_btn.setToolTip("Show / hide password")
         self._eye_btn.toggled.connect(self._toggle_password_visibility)
-        self._pwd_picker = PasswordPickerButton(
-            self._store if self._store is not None else get_password_store()
-        )
+        self._pwd_picker = PasswordPickerButton(get_or_create_store(self._store))
         self._pwd_picker.password_selected.connect(self._password_edit.setText)
 
         pwd_widget = QWidget()
@@ -529,22 +370,22 @@ class ExtractPanel(QWidget):
 
         self._edit_archive_btn = QPushButton("Edit Archive")
         self._edit_archive_btn.setEnabled(False)
-        self._edit_archive_btn.clicked.connect(self._enter_edit_mode)
+        self._edit_archive_btn.clicked.connect(self._tree_widget.enter_edit_mode)
 
         self._extract_btn = QPushButton("Extract")
         self._extract_btn.setEnabled(False)
         self._extract_btn.clicked.connect(self._start_extract)
 
         self._edit_add_btn = QPushButton("Add Files…")
-        self._edit_add_btn.clicked.connect(self._edit_browse_add)
+        self._edit_add_btn.clicked.connect(self._tree_widget.browse_add)
         self._edit_add_btn.setVisible(False)
 
         self._edit_cancel_btn = QPushButton("Cancel")
-        self._edit_cancel_btn.clicked.connect(self._exit_edit_mode)
+        self._edit_cancel_btn.clicked.connect(self._tree_widget.exit_edit_mode)
         self._edit_cancel_btn.setVisible(False)
 
         self._edit_save_btn = QPushButton("Save")
-        self._edit_save_btn.clicked.connect(self._start_update)
+        self._edit_save_btn.clicked.connect(self._tree_widget.save_edits)
         self._edit_save_btn.setVisible(False)
 
         action.addWidget(self._test_btn)
@@ -557,268 +398,6 @@ class ExtractPanel(QWidget):
         vbox.addLayout(action)
 
         return strip
-
-    def _build_tree_pane(self) -> QWidget:
-        pane = QWidget()
-        vbox = QVBoxLayout(pane)
-        vbox.setContentsMargins(0, 0, 0, 0)
-        vbox.setSpacing(4)
-
-        # Subtle header
-        header = QHBoxLayout()
-        self._contents_header_lbl = QLabel("CONTENTS")
-        contents_lbl = self._contents_header_lbl
-        self._entry_count_lbl = QLabel("")
-        header.addWidget(contents_lbl)
-        header.addWidget(self._entry_count_lbl)
-        header.addStretch()
-
-        self._contents_tree = QTreeWidget()
-        self._contents_tree.setColumnCount(1)
-        self._contents_tree.setHeaderHidden(True)
-        self._contents_tree.setRootIsDecorated(True)
-        self._contents_tree.setSortingEnabled(False)
-        self._contents_tree.currentItemChanged.connect(self._on_tree_item_changed)
-
-        vbox.addLayout(header)
-        vbox.addWidget(self._contents_tree, stretch=1)
-        return pane
-
-    def _build_right_pane(self) -> QWidget:
-        """Preview/Info pane with a two-button mode toggle."""
-        pane = QWidget()
-        vbox = QVBoxLayout(pane)
-        vbox.setContentsMargins(0, 0, 0, 0)
-        vbox.setSpacing(4)
-
-        # Header: [Preview] [Info] toggle + entry filename
-        header = QHBoxLayout()
-        header.setSpacing(2)
-
-        def _tab_btn(label: str) -> QPushButton:
-            c = self._colors
-            btn = QPushButton(label)
-            btn.setCheckable(True)
-            btn.setFlat(True)
-            btn.setStyleSheet(
-                f"QPushButton{{border:1px solid {c['border']};border-radius:4px;"
-                f"padding:3px 10px;font-size:12px;"
-                f"background:{c['surface']};color:{c['text_secondary']};}}"
-                f"QPushButton:checked{{"
-                f"color:{c['accent']};border-color:{c['accent']};background:{c['surface']};}}"
-            )
-            return btn
-
-        self._right_preview_btn = _tab_btn("Preview")
-        self._right_preview_btn.setChecked(True)
-        self._right_info_btn = _tab_btn("Info")
-
-        self._right_mode_group = QButtonGroup(pane)
-        self._right_mode_group.setExclusive(True)
-        self._right_mode_group.addButton(self._right_preview_btn, 0)
-        self._right_mode_group.addButton(self._right_info_btn, 1)
-        self._right_mode_group.idClicked.connect(self._on_right_mode_changed)
-
-        self._right_entry_lbl = QLabel("")
-        self._right_entry_lbl.setStyleSheet("color:#888888;font-size:11px;")
-
-        header.addWidget(self._right_preview_btn)
-        header.addWidget(self._right_info_btn)
-        header.addSpacing(8)
-        header.addWidget(self._right_entry_lbl, stretch=1)
-
-        # Stacked content
-        self._right_stack = QStackedWidget()
-
-        placeholder = QLabel("Select a file to preview")
-        placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        placeholder.setStyleSheet("color:#AAAAAA;font-size:12px;")
-        self._right_stack.addWidget(placeholder)  # 0 _RIGHT_PLACEHOLDER
-
-        self._preview_img_label = _ScaledImageLabel()
-        self._right_stack.addWidget(self._preview_img_label)  # 1 _RIGHT_IMAGE
-
-        self._preview_text = QPlainTextEdit()
-        self._preview_text.setReadOnly(True)
-        self._preview_text.setMaximumBlockCount(5000)
-        self._preview_text.setFont(
-            QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
-        )
-        self._right_stack.addWidget(self._preview_text)  # 2 _RIGHT_TEXT
-
-        unsupported = QLabel("No preview available")
-        unsupported.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        unsupported.setStyleSheet("color:#AAAAAA;font-size:12px;")
-        self._right_stack.addWidget(unsupported)  # 3 _RIGHT_UNSUPPORTED
-
-        loading_prev = QLabel("Loading preview…")
-        loading_prev.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        loading_prev.setStyleSheet("color:#AAAAAA;font-size:12px;")
-        self._right_stack.addWidget(loading_prev)  # 4 _RIGHT_LOADING_PREVIEW
-
-        self._right_stack.addWidget(self._build_info_widget())  # 5 _RIGHT_INFO
-
-        loading_info = QLabel("Loading archive info…")
-        loading_info.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        loading_info.setStyleSheet("color:#AAAAAA;font-size:12px;")
-        self._right_stack.addWidget(loading_info)  # 6 _RIGHT_LOADING_INFO
-
-        # ── PDF page ──────────────────────────────────────────────────────────
-        if _HAS_PDF:
-            self._pdf_doc = QPdfDocument(self)
-            self._pdf_view = QPdfView(self)
-            self._pdf_view.setDocument(self._pdf_doc)
-            self._pdf_view.setPageMode(QPdfView.PageMode.MultiPage)
-            self._right_stack.addWidget(self._pdf_view)  # 7 _RIGHT_PDF
-        else:
-            pdf_lbl = QLabel(
-                "PDF preview requires PySide6 PDF modules\n"
-                "(pip install pyside6-addons)"
-            )
-            pdf_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            pdf_lbl.setStyleSheet("color:#AAAAAA;font-size:12px;")
-            self._right_stack.addWidget(pdf_lbl)  # 7 _RIGHT_PDF
-
-        # ── Media page ────────────────────────────────────────────────────────
-        if _HAS_MULTIMEDIA:
-            media_widget = QWidget()
-            media_layout = QVBoxLayout(media_widget)
-            media_layout.setContentsMargins(4, 4, 4, 4)
-            media_layout.setSpacing(4)
-
-            # QGraphicsView wrapper — avoids native-window resize/positioning bugs
-            self._video_view = _VideoView()
-            media_layout.addWidget(self._video_view, stretch=1)
-
-            # Shown instead of the video area for audio-only files
-            self._audio_lbl = QLabel("♫")
-            self._audio_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            self._audio_lbl.setStyleSheet("font-size:48px;color:#888888;")
-            self._audio_lbl.setVisible(False)
-            media_layout.addWidget(self._audio_lbl, stretch=1)
-
-            # ── Seek bar ──────────────────────────────────────────────────────
-            self._seek_bar = _ClickSlider(Qt.Orientation.Horizontal)
-            self._seek_bar.setRange(0, 0)
-            self._seek_bar.setEnabled(False)
-            self._seek_bar.sliderMoved.connect(self._on_seek_bar_moved)
-            media_layout.addWidget(self._seek_bar)
-
-            # ── Controls row ──────────────────────────────────────────────────
-            ctrl_row = QHBoxLayout()
-            ctrl_row.setSpacing(4)
-
-            self._media_play_btn = QPushButton("▶")
-            self._media_play_btn.setFixedWidth(30)
-            self._media_play_btn.setEnabled(False)
-            self._media_play_btn.clicked.connect(self._toggle_media_playback)
-
-            self._media_time_lbl = QLabel("—")
-            self._media_time_lbl.setStyleSheet("font-size:11px;color:#888888;")
-
-            self._mute_btn = QToolButton()
-            self._mute_btn.setText("🔊")
-            self._mute_btn.setCheckable(True)
-            self._mute_btn.setToolTip("Mute / unmute")
-            self._mute_btn.toggled.connect(self._on_mute_toggled)
-
-            self._vol_slider = _ClickSlider(Qt.Orientation.Horizontal)
-            self._vol_slider.setRange(0, 100)
-            self._vol_slider.setValue(100)
-            self._vol_slider.setFixedWidth(60)
-            self._vol_slider.setToolTip("Volume")
-            self._vol_slider.valueChanged.connect(self._on_volume_changed)
-
-            self._speed_combo = QComboBox()
-            for _lbl, _rate in (
-                ("0.25×", 0.25),
-                ("0.5×", 0.5),
-                ("0.75×", 0.75),
-                ("1×", 1.0),
-                ("1.25×", 1.25),
-                ("1.5×", 1.5),
-                ("2×", 2.0),
-            ):
-                self._speed_combo.addItem(_lbl, _rate)
-            self._speed_combo.setCurrentIndex(3)  # 1×
-            self._speed_combo.setFixedWidth(66)
-            self._speed_combo.setToolTip("Playback speed")
-            self._speed_combo.currentIndexChanged.connect(self._on_speed_changed)
-
-            ctrl_row.addWidget(self._media_play_btn)
-            ctrl_row.addWidget(self._media_time_lbl, stretch=1)
-            ctrl_row.addWidget(self._mute_btn)
-            ctrl_row.addWidget(self._vol_slider)
-            ctrl_row.addWidget(self._speed_combo)
-            media_layout.addLayout(ctrl_row)
-
-            self._media_player = QMediaPlayer()
-            self._media_audio = QAudioOutput()
-            self._media_player.setAudioOutput(self._media_audio)
-            self._media_player.setVideoOutput(self._video_view.video_item())
-            self._media_player.playbackStateChanged.connect(
-                self._on_media_state_changed
-            )
-            self._media_player.positionChanged.connect(self._on_media_position_changed)
-            self._media_player.durationChanged.connect(self._on_media_duration_changed)
-            self._right_stack.addWidget(media_widget)  # 8 _RIGHT_MEDIA
-        else:
-            media_lbl = QLabel(
-                "Media preview requires PySide6 multimedia modules\n"
-                "(pip install pyside6-addons)"
-            )
-            media_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            media_lbl.setStyleSheet("color:#AAAAAA;font-size:12px;")
-            self._right_stack.addWidget(media_lbl)  # 8 _RIGHT_MEDIA
-
-        vbox.addLayout(header)
-        vbox.addWidget(self._right_stack, stretch=1)
-        return pane
-
-    def _build_info_widget(self) -> QWidget:
-        """The archive-info page inside the right pane."""
-        w = QWidget()
-        vbox = QVBoxLayout(w)
-        vbox.setContentsMargins(8, 8, 8, 8)
-        vbox.setSpacing(4)
-
-        self._info_title_lbl = QLabel("Archive Info")
-        vbox.addWidget(self._info_title_lbl)
-
-        form = QFormLayout()
-        form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
-        form.setSpacing(4)
-        form.setContentsMargins(0, 4, 0, 0)
-
-        def _val() -> QLabel:
-            return QLabel("—")
-
-        self._info_format = _val()
-        self._info_files = _val()
-        self._info_compressed = _val()
-        self._info_uncompressed = _val()
-        self._info_ratio = _val()
-        self._info_encrypted = _val()
-        self._info_comment = _val()
-        self._info_comment.setWordWrap(True)
-        self._info_row_labels: list[QLabel] = []
-
-        for label, widget in [
-            ("Format:", self._info_format),
-            ("Files:", self._info_files),
-            ("Compressed:", self._info_compressed),
-            ("Original:", self._info_uncompressed),
-            ("Ratio:", self._info_ratio),
-            ("Encrypted:", self._info_encrypted),
-            ("Comment:", self._info_comment),
-        ]:
-            row_lbl = QLabel(label)
-            self._info_row_labels.append(row_lbl)
-            form.addRow(row_lbl, widget)
-
-        vbox.addLayout(form)
-        vbox.addStretch()
-        return w
 
     def _build_log_section(self) -> QWidget:
         section = QWidget()
@@ -889,24 +468,9 @@ class ExtractPanel(QWidget):
             f"font-size:12px;padding:2px 0;border:none;}}"
             f"QPushButton:hover{{color:{c['text']};}}"
         )
-        # Tree header
-        self._contents_header_lbl.setStyleSheet(
-            f"color:{c['text_dim']};font-size:10px;"
-            f"font-weight:bold;letter-spacing:1px;"
-        )
-        self._entry_count_lbl.setStyleSheet(f"color:{c['text_dim']};font-size:10px;")
-        # Right pane toggle buttons — checked: accent text + border, no solid fill
-        for btn in (self._right_preview_btn, self._right_info_btn):
-            btn.setStyleSheet(
-                f"QPushButton{{border:1px solid {c['border']};border-radius:4px;"
-                f"padding:3px 10px;font-size:12px;"
-                f"background:{c['surface']};color:{c['text_secondary']};}}"
-                f"QPushButton:checked{{"
-                f"color:{c['accent']};border-color:{c['accent']};background:{c['surface']};}}"
-            )
-        self._right_entry_lbl.setStyleSheet(
-            f"color:{c['text_secondary']};font-size:11px;"
-        )
+        # Tree widget + preview pane
+        self._tree_widget.set_theme(c)
+        self._preview_pane.set_theme(c)
         # Extract (primary) button
         self._extract_btn.setStyleSheet(
             f"QPushButton{{background:{c['accent']};color:white;border:none;"
@@ -914,22 +478,6 @@ class ExtractPanel(QWidget):
             f"QPushButton:hover{{background:{c['accent_hover']};}}"
             f"QPushButton:disabled{{background:{c['accent_disabled_bg']};color:#EEEEEE;}}"
         )
-        # Info pane
-        self._info_title_lbl.setStyleSheet(
-            f"font-weight:600;font-size:12px;color:{c['text']};"
-        )
-        for lbl in self._info_row_labels:
-            lbl.setStyleSheet(f"color:{c['text_dim']};font-size:12px;")
-        for lbl in (
-            self._info_format,
-            self._info_files,
-            self._info_compressed,
-            self._info_uncompressed,
-            self._info_ratio,
-            self._info_encrypted,
-            self._info_comment,
-        ):
-            lbl.setStyleSheet(f"color:{c['text_secondary']};font-size:12px;")
         # Log
         self._log_toggle_btn.setStyleSheet(
             f"QPushButton{{text-align:left;color:{c['text_secondary']};font-size:12px;"
@@ -937,16 +485,6 @@ class ExtractPanel(QWidget):
             f"QPushButton:hover{{color:{c['text']};}}"
         )
         self._log_last_lbl.setStyleSheet(f"color:{c['text_dim']};font-size:11px;")
-        # Right-pane placeholder/status labels (static pages)
-        for page_idx in (
-            _RIGHT_PLACEHOLDER,
-            _RIGHT_UNSUPPORTED,
-            _RIGHT_LOADING_PREVIEW,
-            _RIGHT_LOADING_INFO,
-        ):
-            w = self._right_stack.widget(page_idx)
-            if w:
-                w.setStyleSheet(f"color:{c['text_dim']};font-size:12px;")
 
     # ── Archive path management ───────────────────────────────────────────────
 
@@ -974,9 +512,7 @@ class ExtractPanel(QWidget):
     # ── Slots ─────────────────────────────────────────────────────────────────
 
     def _on_archive_changed(self) -> None:
-        self._stop_media()
-        if self._pdf_doc is not None:
-            self._pdf_doc.close()
+        self._preview_pane.stop_media()
         self._preview_token += 1  # discard any in-flight preview results
         has_path = bool(self._current_path)
         self._test_btn.setEnabled(False)
@@ -984,17 +520,10 @@ class ExtractPanel(QWidget):
         self._edit_archive_btn.setEnabled(False)
         self._preview_valid = False
         self._preview_names = []
-        self._contents_tree.clear()
-        self._entry_count_lbl.setText("")
+        self._tree_widget.clear()
         self._filename_encoding_combo.reset_detected()
-        self._right_stack.setCurrentIndex(_RIGHT_PLACEHOLDER)
-        self._right_entry_lbl.setText("")
-        self._right_preview_btn.setChecked(True)
+        self._preview_pane.clear()
         self._cleanup_preview_tmpdir()
-        self._archive_info_cache = None
-        self._clear_info_labels()
-        if self._edit_mode:
-            self._exit_edit_mode()
         self.archive_state_changed.emit(has_path, False)
         if has_path:
             self.archive_opened.emit(self._current_path)
@@ -1021,8 +550,7 @@ class ExtractPanel(QWidget):
         if not self._current_path:
             return
         self._op_password = self._password_edit.text()
-        self._contents_tree.clear()
-        self._entry_count_lbl.setText("")
+        self._tree_widget.clear()
         self._preview_valid = False
         self._extract_btn.setEnabled(False)
         self._log("─" * 60)
@@ -1103,12 +631,11 @@ class ExtractPanel(QWidget):
     def _on_list_finished(self, ok: bool, enc: str, names: list) -> None:
         self._set_busy(False)
         if ok:
-            self._populate_tree(names)
+            self._tree_widget.populate(names)
             self._preview_valid = True
             self._preview_names = list(names)
             self._extract_btn.setEnabled(True)
             self._edit_archive_btn.setEnabled(True)
-            self._entry_count_lbl.setText(f"  {len(names)} entries")
             self._log(
                 f"✓ Preview ready — {len(names)} entries  (encoding: {enc or 'auto'})"
             )
@@ -1205,56 +732,44 @@ class ExtractPanel(QWidget):
 
     # ── Tree selection → right pane ───────────────────────────────────────────
 
-    def _on_tree_item_changed(
-        self, current: QTreeWidgetItem | None, _prev: QTreeWidgetItem | None
-    ) -> None:
-        if current is None:
-            self._right_entry_lbl.setText("")
-            if self._right_preview_btn.isChecked():
-                self._right_stack.setCurrentIndex(_RIGHT_PLACEHOLDER)
-            return
-        full_path: str = current.data(0, Qt.ItemDataRole.UserRole) or ""
+    def _on_entry_selected(self, full_path: str) -> None:
+        self._preview_pane.set_entry(full_path)
         if not full_path or full_path.endswith("/"):
-            self._right_entry_lbl.setText("")
-            if self._right_preview_btn.isChecked():
-                self._right_stack.setCurrentIndex(_RIGHT_PLACEHOLDER)
+            if self._preview_pane.is_preview_mode():
+                self._preview_pane.show_placeholder()
             return
-        self._right_entry_lbl.setText(os.path.basename(full_path))
-        if self._right_preview_btn.isChecked() and self._worker is None:
+        if self._preview_pane.is_preview_mode() and self._worker is None:
             self._start_preview(full_path)
 
-    def _on_right_mode_changed(self, mode_id: int) -> None:
-        if mode_id == 1:  # Info mode
-            if self._archive_info_cache is not None:
-                self._right_stack.setCurrentIndex(_RIGHT_INFO)
-            else:
-                self._right_stack.setCurrentIndex(_RIGHT_LOADING_INFO)
-                if self._current_path and self._inspector_worker is None:
-                    self._inspector_worker = InfoWorker(self._current_path)
-                    self._inspector_worker.result.connect(self._on_info_result)
-                    self._inspector_worker.error.connect(self._on_info_error)
-                    self._inspector_worker.finished.connect(
-                        self._inspector_worker.deleteLater
-                    )
-                    self._inspector_worker.finished.connect(
-                        lambda: setattr(self, "_inspector_worker", None)
-                    )
-                    self._inspector_worker.start()
-        else:  # Preview mode
-            current = self._contents_tree.currentItem()
-            if current:
-                full_path: str = current.data(0, Qt.ItemDataRole.UserRole) or ""
-                if full_path and not full_path.endswith("/") and self._worker is None:
-                    self._start_preview(full_path)
-                    return
-            self._right_stack.setCurrentIndex(_RIGHT_PLACEHOLDER)
+    def _on_edit_mode_changed(self, entering: bool) -> None:
+        self._test_btn.setVisible(not entering)
+        self._extract_btn.setVisible(not entering)
+        self._edit_archive_btn.setVisible(not entering)
+        self._edit_add_btn.setVisible(entering)
+        self._edit_cancel_btn.setVisible(entering)
+        self._edit_save_btn.setVisible(entering)
+
+    def _on_entries_modified(self, files_to_add: list, paths_to_remove: list) -> None:
+        self._start_update(files_to_add, paths_to_remove)
+
+    def _on_info_requested(self) -> None:
+        if not self._current_path or self._inspector_worker is not None:
+            return
+        self._inspector_worker = InfoWorker(self._current_path)
+        self._inspector_worker.result.connect(self._preview_pane.show_info)
+        self._inspector_worker.error.connect(self._preview_pane.show_info_error)
+        self._inspector_worker.finished.connect(self._inspector_worker.deleteLater)
+        self._inspector_worker.finished.connect(
+            lambda: setattr(self, "_inspector_worker", None)
+        )
+        self._inspector_worker.start()
 
     def _start_preview(self, entry_name: str) -> None:
-        self._stop_media()
+        self._preview_pane.stop_media()
         self._op_password = self._password_edit.text()
         self._preview_token += 1
         token = self._preview_token
-        self._right_stack.setCurrentIndex(_RIGHT_LOADING_PREVIEW)
+        self._preview_pane.show_loading_preview()
 
         worker = PreviewWorker(
             self._current_path,
@@ -1287,53 +802,10 @@ class ExtractPanel(QWidget):
 
     def _on_preview_result(self, tmpdir: str, file_path: str) -> None:
         self._preview_tmpdir = tmpdir
-        ext = os.path.splitext(file_path)[1].lower()
-
-        if ext in _IMAGE_EXTS:
-            pixmap = QPixmap(file_path)
-            if not pixmap.isNull():
-                self._preview_img_label.set_source(pixmap)
-                self._right_stack.setCurrentIndex(_RIGHT_IMAGE)
-                return
-
-        if ext in _TEXT_EXTS:
-            try:
-                with open(file_path, encoding="utf-8", errors="replace") as fh:
-                    content = fh.read(100_000)
-                self._preview_text.setPlainText(content)
-                self._right_stack.setCurrentIndex(_RIGHT_TEXT)
-                return
-            except OSError:
-                pass
-
-        if ext in _PDF_EXTS:
-            if _HAS_PDF and self._pdf_doc is not None:
-                self._pdf_doc.close()
-                self._pdf_doc.load(file_path)
-            self._right_stack.setCurrentIndex(_RIGHT_PDF)
-            return
-
-        if ext in _AUDIO_EXTS or ext in _VIDEO_EXTS:
-            if self._media_player is not None:
-                is_video = ext in _VIDEO_EXTS
-                self._video_view.setVisible(is_video)
-                self._audio_lbl.setVisible(not is_video)
-                self._seek_bar.setRange(0, 0)
-                self._seek_bar.setValue(0)
-                self._seek_bar.setEnabled(False)
-                self._media_play_btn.setEnabled(False)
-                self._media_play_btn.setText("▶")
-                self._media_time_lbl.setText("—")
-                self._media_player.setSource(QUrl.fromLocalFile(file_path))
-                self._media_player.play()
-            self._right_stack.setCurrentIndex(_RIGHT_MEDIA)
-            return
-
-        self._right_stack.setCurrentIndex(_RIGHT_UNSUPPORTED)
+        self._preview_pane.show_file(file_path)
 
     def _on_preview_error(self, _msg: str) -> None:
-        self._right_stack.setCurrentIndex(_RIGHT_UNSUPPORTED)
-        # Listing succeeded but file extraction failed → content encryption.
+        self._preview_pane.show_unsupported()
         had_pwd = bool(self._op_password)
         msg = (
             "Incorrect password — could not extract the file for preview.\n"
@@ -1345,247 +817,27 @@ class ExtractPanel(QWidget):
         password = self._prompt_for_password(msg)
         if password is not None:
             self._password_edit.setText(password)
-            current = self._contents_tree.currentItem()
-            if current:
-                full_path: str = current.data(0, Qt.ItemDataRole.UserRole) or ""
-                if full_path and not full_path.endswith("/"):
-                    self._start_preview(full_path)
+            entry = self._tree_widget.current_entry()
+            if entry and not entry.endswith("/"):
+                self._start_preview(entry)
 
-    # ── Media ─────────────────────────────────────────────────────────────────
+    # ── Edit mode (tree delegates, panel manages buttons + worker) ────────────
 
-    def _stop_media(self) -> None:
-        if self._media_player is not None:
-            self._media_player.stop()
-
-    def _toggle_media_playback(self) -> None:
-        if not _HAS_MULTIMEDIA or self._media_player is None:
-            return
-        _playing = QMediaPlayer.PlaybackState.PlayingState
-        if self._media_player.playbackState() == _playing:
-            self._media_player.pause()
-        else:
-            self._media_player.play()
-
-    def _on_media_state_changed(self, state) -> None:
-        if not _HAS_MULTIMEDIA or not hasattr(self, "_media_play_btn"):
-            return
-        playing = state == QMediaPlayer.PlaybackState.PlayingState
-        self._media_play_btn.setText("⏸" if playing else "▶")
-
-    def _on_media_duration_changed(self, duration: int) -> None:
-        has_media = duration > 0
-        if hasattr(self, "_seek_bar"):
-            self._seek_bar.setRange(0, duration)
-            self._seek_bar.setEnabled(has_media)
-        if hasattr(self, "_media_play_btn"):
-            self._media_play_btn.setEnabled(has_media)
-
-    def _on_media_position_changed(self, pos: int) -> None:
-        if self._media_player is None:
-            return
-
-        def _fmt(ms: int) -> str:
-            s = ms // 1000
-            return f"{s // 60}:{s % 60:02d}"
-
-        total = self._media_player.duration()
-        if hasattr(self, "_media_time_lbl"):
-            if total > 0:
-                self._media_time_lbl.setText(f"{_fmt(pos)} / {_fmt(total)}")
-            else:
-                self._media_time_lbl.setText(_fmt(pos))
-        if hasattr(self, "_seek_bar") and not self._seek_bar.isSliderDown():
-            self._seek_bar.setValue(pos)
-
-    def _on_seek_bar_moved(self, pos: int) -> None:
-        if self._media_player is not None:
-            self._media_player.setPosition(pos)
-
-    def _on_volume_changed(self, value: int) -> None:
-        if self._media_audio is not None:
-            self._media_audio.setVolume(value / 100.0)
-        # Dragging volume up auto-unmutes
-        if value > 0 and hasattr(self, "_mute_btn") and self._mute_btn.isChecked():
-            self._mute_btn.setChecked(False)
-
-    def _on_mute_toggled(self, muted: bool) -> None:
-        if self._media_audio is not None:
-            self._media_audio.setMuted(muted)
-        if hasattr(self, "_mute_btn"):
-            self._mute_btn.setText("🔇" if muted else "🔊")
-
-    def _on_speed_changed(self, index: int) -> None:
-        if self._media_player is not None and hasattr(self, "_speed_combo"):
-            rate = self._speed_combo.itemData(index)
-            if rate is not None:
-                self._media_player.setPlaybackRate(float(rate))
-
-    # ── Info ──────────────────────────────────────────────────────────────────
-
-    def _on_info_result(self, info) -> None:
-        self._archive_info_cache = info
-
-        def _fmt(n: int) -> str:
-            if n < 0:
-                return "—"
-            for unit in ("B", "KB", "MB", "GB"):
-                if n < 1024:
-                    return f"{n:.1f} {unit}"
-                n //= 1024  # type: ignore[assignment]
-            return f"{n} TB"
-
-        self._info_format.setText(info.format_name)
-        self._info_files.setText(str(info.file_count))
-        self._info_compressed.setText(_fmt(info.compressed_size))
-        self._info_uncompressed.setText(_fmt(info.uncompressed_size))
-        if info.compressed_size > 0 and info.uncompressed_size > 0:
-            self._info_ratio.setText(
-                f"{info.compressed_size / info.uncompressed_size:.1%}"
-            )
-        else:
-            self._info_ratio.setText("—")
-        self._info_encrypted.setText("Yes" if info.is_encrypted else "No")
-        self._info_comment.setText(info.comment or "—")
-        self._right_stack.setCurrentIndex(_RIGHT_INFO)
-
-    def _on_info_error(self, msg: str) -> None:
-        self._info_format.setText(f"Error: {msg[:40]}")
-        self._right_stack.setCurrentIndex(_RIGHT_INFO)
-
-    def _clear_info_labels(self) -> None:
-        for lbl in (
-            self._info_format,
-            self._info_files,
-            self._info_compressed,
-            self._info_uncompressed,
-            self._info_ratio,
-            self._info_encrypted,
-            self._info_comment,
-        ):
-            lbl.setText("—")
-
-    # ── Edit mode ─────────────────────────────────────────────────────────────
-
-    def _enter_edit_mode(self) -> None:
-        self._edit_mode = True
-        self._edit_remove.clear()
-        self._edit_add.clear()
-        self._test_btn.setVisible(False)
-        self._extract_btn.setVisible(False)
-        self._edit_archive_btn.setVisible(False)
-        self._edit_add_btn.setVisible(True)
-        self._edit_cancel_btn.setVisible(True)
-        self._edit_save_btn.setVisible(True)
-        self._contents_tree.setFocus()
-        self._contents_tree.keyPressEvent = self._edit_tree_key_press  # type: ignore[method-assign]
-        self._contents_tree.setAcceptDrops(True)
-        self._contents_tree.dragEnterEvent = self._edit_drag_enter  # type: ignore[method-assign]
-        self._contents_tree.dropEvent = self._edit_drop  # type: ignore[method-assign]
-        self._log("Edit mode — Delete: remove selected  |  drag files here: add")
-
-    def _exit_edit_mode(self) -> None:
-        self._edit_mode = False
-        self._edit_remove.clear()
-        self._edit_add.clear()
-        self._test_btn.setVisible(True)
-        self._extract_btn.setVisible(True)
-        self._edit_archive_btn.setVisible(True)
-        self._edit_add_btn.setVisible(False)
-        self._edit_cancel_btn.setVisible(False)
-        self._edit_save_btn.setVisible(False)
-        self._restore_tree_colors()
-        del self._contents_tree.keyPressEvent  # type: ignore[misc]
-        del self._contents_tree.dragEnterEvent  # type: ignore[misc]
-        del self._contents_tree.dropEvent  # type: ignore[misc]
-        self._contents_tree.setAcceptDrops(False)
-
-    def _edit_tree_key_press(self, event) -> None:
-        if event.key() in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace):
-            self._edit_mark_selected_for_removal()
-        else:
-            QTreeWidget.keyPressEvent(self._contents_tree, event)
-
-    def _edit_drag_enter(self, event) -> None:
-        if event.mimeData().hasUrls():
-            event.acceptProposedAction()
-        else:
-            event.ignore()
-
-    def _edit_drop(self, event) -> None:
-        paths = [u.toLocalFile() for u in event.mimeData().urls() if u.isLocalFile()]
-        if paths:
-            self._edit_add_files(paths)
-        event.acceptProposedAction()
-
-    def _edit_browse_add(self) -> None:
-        paths, _ = QFileDialog.getOpenFileNames(self, "Add Files to Archive", "")
-        if paths:
-            self._edit_add_files(paths)
-
-    def _edit_add_files(self, paths: list[str]) -> None:
-        file_icon = self.style().standardIcon(QStyle.StandardPixmap.SP_FileIcon)
-        green = QColor("#006600")
-        for path in paths:
-            if path not in self._edit_add:
-                self._edit_add.append(path)
-                item = QTreeWidgetItem([f"+ {os.path.basename(path)}"])
-                item.setIcon(0, file_icon)
-                item.setForeground(0, green)
-                item.setData(0, Qt.ItemDataRole.UserRole, None)
-                self._contents_tree.addTopLevelItem(item)
-
-    def _edit_mark_selected_for_removal(self) -> None:
-        strike_font = QFont()
-        strike_font.setStrikeOut(True)
-        red = QColor("#CC0000")
-        for item in self._contents_tree.selectedItems():
-            full_path: str = item.data(0, Qt.ItemDataRole.UserRole) or ""
-            if full_path and full_path not in self._edit_remove:
-                self._edit_mark_item_recursive(item, strike_font, red, full_path)
-
-    def _edit_mark_item_recursive(
-        self, item: QTreeWidgetItem, font: QFont, color: QColor, path: str
-    ) -> None:
-        if path:
-            self._edit_remove.add(path)
-        item.setFont(0, font)
-        item.setForeground(0, color)
-        for i in range(item.childCount()):
-            child = item.child(i)
-            child_path: str = child.data(0, Qt.ItemDataRole.UserRole) or ""
-            self._edit_mark_item_recursive(child, font, color, child_path)
-
-    def _restore_tree_colors(self) -> None:
-        normal_font = QFont()
-        default_color = self._contents_tree.palette().color(
-            self._contents_tree.foregroundRole()
-        )
-
-        def _restore(item: QTreeWidgetItem) -> None:
-            item.setFont(0, normal_font)
-            item.setForeground(0, default_color)
-            for i in range(item.childCount()):
-                _restore(item.child(i))
-
-        root = self._contents_tree.invisibleRootItem()
-        for i in range(root.childCount()):
-            _restore(root.child(i))
-
-    def _start_update(self) -> None:
+    def _start_update(self, files_to_add: list, paths_to_remove: list) -> None:
         if not self._current_path:
             return
-        if not self._edit_remove and not self._edit_add:
-            self._exit_edit_mode()
+        if not paths_to_remove and not files_to_add:
+            self._tree_widget.exit_edit_mode()
             return
         self._log("─" * 60)
         self._log(
-            f"Updating archive: removing {len(self._edit_remove)}, "
-            f"adding {len(self._edit_add)} file(s)…"
+            f"Updating archive: removing {len(paths_to_remove)}, "
+            f"adding {len(files_to_add)} file(s)…"
         )
         worker = UpdateWorker(
             self._current_path,
-            list(self._edit_add),
-            list(self._edit_remove),
+            files_to_add,
+            paths_to_remove,
         )
         worker.result.connect(self._on_update_finished)
         worker.error.connect(self._on_update_error)
@@ -1598,7 +850,7 @@ class ExtractPanel(QWidget):
 
     def _on_update_finished(self, ok: bool) -> None:
         self._set_busy(False)
-        self._exit_edit_mode()
+        self._tree_widget.exit_edit_mode()
         if ok:
             self._log("✓ Archive updated.")
             self.status_changed.emit("Archive updated")
@@ -1609,7 +861,7 @@ class ExtractPanel(QWidget):
 
     def _on_update_error(self, msg: str) -> None:
         self._set_busy(False)
-        self._exit_edit_mode()
+        self._tree_widget.exit_edit_mode()
         self._log(f"✗ Update error: {msg}")
         self.status_changed.emit("Update error")
 
@@ -1636,67 +888,9 @@ class ExtractPanel(QWidget):
 
     def _prompt_for_password(self, message: str) -> str | None:
         """Modal password-entry dialog. Returns entered text, or None if cancelled."""
-        dlg = QDialog(self)
-        dlg.setWindowTitle("Password Required")
-        dlg.setMinimumWidth(420)
-
-        layout = QVBoxLayout(dlg)
-        layout.setContentsMargins(20, 16, 20, 16)
-        layout.setSpacing(12)
-
-        msg_lbl = QLabel(message)
-        msg_lbl.setWordWrap(True)
-        msg_lbl.setMinimumWidth(380)
-        layout.addWidget(msg_lbl)
-
-        pwd_row = QHBoxLayout()
-        pwd_row.setSpacing(4)
-        pwd_edit = QLineEdit()
-        pwd_edit.setEchoMode(QLineEdit.EchoMode.Password)
-        pwd_edit.setPlaceholderText("Archive password")
-
-        eye = QToolButton()
-        eye.setCheckable(True)
-        eye.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogNoButton))
-        eye.setToolTip("Show / hide")
-
-        def _toggle_eye(on: bool) -> None:
-            pwd_edit.setEchoMode(
-                QLineEdit.EchoMode.Normal if on else QLineEdit.EchoMode.Password
-            )
-            eye.setIcon(
-                self.style().standardIcon(
-                    QStyle.StandardPixmap.SP_DialogYesButton
-                    if on
-                    else QStyle.StandardPixmap.SP_DialogNoButton
-                )
-            )
-
-        eye.toggled.connect(_toggle_eye)
-
-        picker = PasswordPickerButton(
-            self._store if self._store is not None else get_password_store()
-        )
-        picker.password_selected.connect(pwd_edit.setText)
-
-        pwd_row.addWidget(pwd_edit)
-        pwd_row.addWidget(eye)
-        pwd_row.addWidget(picker)
-        layout.addLayout(pwd_row)
-
-        btns = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
-        )
-        btns.accepted.connect(dlg.accept)
-        btns.rejected.connect(dlg.reject)
-        layout.addWidget(btns)
-
-        pwd_edit.returnPressed.connect(dlg.accept)
-        pwd_edit.setFocus()
-        dlg.adjustSize()
-
+        dlg = PasswordPromptDialog(message, store=self._store, parent=self)
         if dlg.exec() == QDialog.DialogCode.Accepted:
-            return pwd_edit.text()
+            return dlg.password()
         return None
 
     def _toggle_advanced(self, checked: bool) -> None:
@@ -1712,52 +906,6 @@ class ExtractPanel(QWidget):
         if self._preview_tmpdir:
             shutil.rmtree(self._preview_tmpdir, ignore_errors=True)
             self._preview_tmpdir = None
-
-    def _populate_tree(self, names: list[str]) -> None:
-        self._contents_tree.clear()
-        dir_icon = self.style().standardIcon(QStyle.StandardPixmap.SP_DirIcon)
-        file_icon = self.style().standardIcon(QStyle.StandardPixmap.SP_FileIcon)
-
-        folder_items: dict[str, QTreeWidgetItem] = {}
-
-        def _get_or_create_folder(path: str) -> QTreeWidgetItem:
-            if path in folder_items:
-                return folder_items[path]
-            clean = path.rstrip("/")
-            sep = clean.rfind("/")
-            label = clean[sep + 1 :]
-            item = QTreeWidgetItem([label])
-            item.setIcon(0, dir_icon)
-            item.setData(0, Qt.ItemDataRole.UserRole, path)
-            if sep == -1:
-                self._contents_tree.addTopLevelItem(item)
-            else:
-                parent_path = clean[:sep] + "/"
-                _get_or_create_folder(parent_path).addChild(item)
-            folder_items[path] = item
-            return item
-
-        for name in names:
-            if name.endswith("/"):
-                _get_or_create_folder(name)
-                continue
-            sep = name.rfind("/")
-            label = name[sep + 1 :] if sep != -1 else name
-            entry = QTreeWidgetItem([label])
-            entry.setIcon(0, file_icon)
-            entry.setData(0, Qt.ItemDataRole.UserRole, name)
-            if sep == -1:
-                self._contents_tree.addTopLevelItem(entry)
-            else:
-                parent_path = name[:sep] + "/"
-                _get_or_create_folder(parent_path).addChild(entry)
-
-        root = self._contents_tree.invisibleRootItem()
-        if root.childCount() <= 50:
-            self._contents_tree.expandAll()
-        else:
-            for i in range(root.childCount()):
-                root.child(i).setExpanded(True)
 
     # ── Public action entry-points (called from menu bar) ─────────────────────
 
@@ -1798,16 +946,9 @@ class ExtractPanel(QWidget):
             self._log(f"  ⚠ Could not move to trash: {self._current_path}")
 
     def _run_filename_detection(self) -> None:
-        archive = self._current_path
-        if not archive:
+        if not self._current_path:
             return
-        low = archive.lower()
-        if low.endswith((".zip", ".z01")):
-            codec, confidence = detect_zip_filename_encoding(Path(archive))
-        elif low.endswith((".rar", ".r00", ".r01")):
-            codec, confidence = detect_rar_filename_encoding(Path(archive))
-        else:
-            return
+        codec, confidence = detect_archive_encoding(self._current_path)
         if codec and confidence >= 0.5:
             self._filename_encoding_combo.set_detected(codec, confidence)
             self._log(

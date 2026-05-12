@@ -24,29 +24,149 @@ class ArchiveInfo:
     archive_path: Path | None = field(default=None, repr=False)
 
 
+def resolve_password_candidates(
+    password: str,
+    password_encoding: str | None,
+) -> list[tuple[bytes, str]]:
+    """Return password byte candidates, optionally pinned to one encoding."""
+    if password_encoding:
+        try:
+            return [(password.encode(password_encoding), password_encoding)]
+        except (UnicodeEncodeError, LookupError):
+            pass  # bad hint — fall back to auto-detect
+    return password_candidates(password)
+
+
 class ArchiveHandler(ABC):
-    """Common interface for all archive format handlers."""
+    """Pure interface for all archive format handlers."""
 
     FORMAT_NAME: str = "archive"
     CAN_CREATE: bool = False  # handler supports archive creation
     CAN_ENCRYPT_CREATE: bool = False  # handler supports encrypted creation
 
-    # ── Password candidate resolution ────────────────────────────────────────
+    # ── Extract ───────────────────────────────────────────────────────────────
+
+    @abstractmethod
+    def extract(
+        self,
+        archive_path: Path,
+        password: str,
+        output_dir: Path,
+        *,
+        filename_encoding: str | None = None,
+        password_encoding: str | None = None,
+        verbose: bool = True,
+        progress: Callable[[int, int, str], None] | None = None,
+        bytes_progress: Callable[[int, int], None] | None = None,
+    ) -> tuple[bool, str | None]:
+        """Extract *archive_path* into *output_dir*. Return (success, encoding_used)."""
+
+    # ── List contents ─────────────────────────────────────────────────────────
+
+    @abstractmethod
+    def list_contents(
+        self,
+        archive_path: Path,
+        password: str,
+        filename_encoding: str | None = None,
+        password_encoding: str | None = None,
+    ) -> tuple[bool, str | None, list[str]]:
+        """Return (success, encoding_used, file_names) without extracting."""
+
+    # ── Archive info (optional override) ─────────────────────────────────────
+
+    def get_info(self, archive_path: Path) -> ArchiveInfo:
+        """Return basic archive metadata. Override in subclasses for richer data."""
+        return ArchiveInfo(
+            format_name=self.FORMAT_NAME,
+            file_count=-1,
+            compressed_size=-1,
+            uncompressed_size=-1,
+            is_encrypted=False,
+            archive_path=archive_path,
+        )
+
+    # ── Test / verify ─────────────────────────────────────────────────────────
+
+    def test(
+        self,
+        archive_path: Path,
+        password: str,
+        *,
+        filename_encoding: str | None = None,
+        password_encoding: str | None = None,
+    ) -> tuple[bool, list[str]]:
+        """
+        Verify archive integrity without writing to disk.
+        Returns (all_ok, failed_entry_names).
+        Default: extracts to a temp directory; override for in-memory checking.
+        """
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ok, _ = self.extract(
+                archive_path,
+                password,
+                Path(tmpdir),
+                filename_encoding=filename_encoding,
+                password_encoding=password_encoding,
+                verbose=False,
+            )
+        return (True, []) if ok else (False, ["Archive integrity check failed"])
+
+    # ── Create ────────────────────────────────────────────────────────────────
+
+    def create(
+        self,
+        output_path: Path,
+        files: list[Path],
+        *,
+        password: str | None = None,
+        compression_level: int = 6,
+        filename_encoding: str | None = None,
+    ) -> bool:
+        raise NotImplementedError(
+            f"{self.FORMAT_NAME} handler does not support archive creation."
+        )
+
+
+class PasswordLoopMixin(ABC):
+    """
+    Mixin for handlers that try multiple password byte-encodings (ZIP, RAR).
+
+    Subclass as ``class MyHandler(PasswordLoopMixin, ArchiveHandler)`` and
+    implement the two primitives ``_try_extract`` and ``_list_names``.
+    The mixin provides concrete ``extract()`` and ``list_contents()`` that
+    loop over candidates returned by ``_resolve_candidates()``.
+    """
 
     @staticmethod
     def _resolve_candidates(
         password: str,
         password_encoding: str | None,
     ) -> list[tuple[bytes, str]]:
-        """Return password byte candidates, optionally pinned to one encoding."""
-        if password_encoding:
-            try:
-                return [(password.encode(password_encoding), password_encoding)]
-            except (UnicodeEncodeError, LookupError):
-                pass  # bad hint — fall back to auto-detect
-        return password_candidates(password)
+        return resolve_password_candidates(password, password_encoding)
 
-    # ── Extract ───────────────────────────────────────────────────────────────
+    @abstractmethod
+    def _try_extract(
+        self,
+        archive_path: Path,
+        pwd_bytes: bytes,
+        output_dir: Path,
+        filename_encoding: str | None,
+        progress: Callable[[int, int, str], None] | None = None,
+        bytes_progress: Callable[[int, int], None] | None = None,
+    ) -> bool:
+        pass
+
+    @abstractmethod
+    def _list_names(
+        self,
+        archive_path: Path,
+        pwd_bytes: bytes,
+        filename_encoding: str | None,
+    ) -> list[str] | None:
+        pass
 
     def extract(
         self,
@@ -60,17 +180,13 @@ class ArchiveHandler(ABC):
         progress: Callable[[int, int, str], None] | None = None,
         bytes_progress: Callable[[int, int], None] | None = None,
     ) -> tuple[bool, str | None]:
-        """
-        Try every password encoding candidate for *password* and extract
-        *archive_path* into *output_dir* with the first byte sequence that works.
-        """
         candidates = self._resolve_candidates(password, password_encoding)
         if not candidates:
             log.error("Could not encode password with any known encoding.")
             return False, None
 
         if verbose:
-            log.info("Format   : %s", self.FORMAT_NAME)
+            log.info("Format   : %s", self.FORMAT_NAME)  # type: ignore[attr-defined]
             log.info("Archive  : %s", archive_path)
             log.info("Output   : %s", output_dir)
             if filename_encoding:
@@ -103,8 +219,6 @@ class ArchiveHandler(ABC):
         log.error("✗ All encodings failed.  Check the password and try again.")
         return False, None
 
-    # ── List contents ─────────────────────────────────────────────────────────
-
     def list_contents(
         self,
         archive_path: Path,
@@ -112,7 +226,6 @@ class ArchiveHandler(ABC):
         filename_encoding: str | None = None,
         password_encoding: str | None = None,
     ) -> tuple[bool, str | None, list[str]]:
-        """Return ``(success, encoding_used, file_names)`` without extracting."""
         for pwd_bytes, enc in self._resolve_candidates(password, password_encoding):
             try:
                 names = self._list_names(archive_path, pwd_bytes, filename_encoding)
@@ -121,83 +234,3 @@ class ArchiveHandler(ABC):
             except Exception:  # noqa: BLE001
                 continue
         return False, None, []
-
-    # ── Archive info (optional override) ─────────────────────────────────────
-
-    def get_info(self, archive_path: Path) -> ArchiveInfo:
-        """Return basic archive metadata. Override in subclasses for richer data."""
-        return ArchiveInfo(
-            format_name=self.FORMAT_NAME,
-            file_count=-1,
-            compressed_size=-1,
-            uncompressed_size=-1,
-            is_encrypted=False,
-            archive_path=archive_path,
-        )
-
-    # ── Test / verify ─────────────────────────────────────────────────────────
-
-    def test(
-        self,
-        archive_path: Path,
-        password: str,
-        *,
-        filename_encoding: str | None = None,
-        password_encoding: str | None = None,
-    ) -> tuple[bool, list[str]]:
-        """
-        Verify archive integrity without writing to disk.
-        Returns ``(all_ok, failed_entry_names)``.
-        Default implementation extracts to a temp directory; override for
-        in-memory checking.
-        """
-        import tempfile
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            ok, _ = self.extract(
-                archive_path,
-                password,
-                Path(tmpdir),
-                filename_encoding=filename_encoding,
-                password_encoding=password_encoding,
-                verbose=False,
-            )
-        return (True, []) if ok else (False, ["Archive integrity check failed"])
-
-    # ── Create ────────────────────────────────────────────────────────────────
-
-    def create(
-        self,
-        output_path: Path,
-        files: list[Path],
-        *,
-        password: str | None = None,
-        compression_level: int = 6,
-        filename_encoding: str | None = None,
-    ) -> bool:
-        raise NotImplementedError(
-            f"{self.FORMAT_NAME} handler does not support archive creation."
-        )
-
-    # ── Abstract primitives ───────────────────────────────────────────────────
-
-    @abstractmethod
-    def _try_extract(
-        self,
-        archive_path: Path,
-        pwd_bytes: bytes,
-        output_dir: Path,
-        filename_encoding: str | None,
-        progress: Callable[[int, int, str], None] | None = None,
-        bytes_progress: Callable[[int, int], None] | None = None,
-    ) -> bool:
-        pass
-
-    @abstractmethod
-    def _list_names(
-        self,
-        archive_path: Path,
-        pwd_bytes: bytes,
-        filename_encoding: str | None,
-    ) -> list[str] | None:
-        pass

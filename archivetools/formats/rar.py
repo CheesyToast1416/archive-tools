@@ -5,12 +5,12 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from archivetools.formats.base import ArchiveHandler, ArchiveInfo
+from archivetools.formats.base import ArchiveHandler, ArchiveInfo, PasswordLoopMixin
 
 log = logging.getLogger(__name__)
 
 
-class RarHandler(ArchiveHandler):
+class RarHandler(PasswordLoopMixin, ArchiveHandler):
     FORMAT_NAME = "RAR"
     CAN_CREATE = False  # rarfile is read-only; RAR creation requires rar CLI
     CAN_ENCRYPT_CREATE = False

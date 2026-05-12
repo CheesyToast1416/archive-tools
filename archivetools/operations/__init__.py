@@ -8,7 +8,11 @@ from archivetools.operations.extract import (
     smart_output_dir,
     smart_restructure,
 )
-from archivetools.operations.inspect import get_archive_info, list_archive
+from archivetools.operations.inspect import (
+    detect_archive_encoding,
+    get_archive_info,
+    list_archive,
+)
 from archivetools.operations.test import test_archive
 from archivetools.operations.update import update_archive
 
@@ -25,4 +29,5 @@ __all__ = [
     "smart_output_dir",
     "smart_restructure",
     "update_archive",
+    "detect_archive_encoding",
 ]
