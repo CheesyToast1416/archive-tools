@@ -8,6 +8,7 @@ import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
+from starlette.responses import FileResponse
 
 from server.auth import verify_token
 from server.models import PreviewRequest, PreviewResponse
@@ -72,6 +73,19 @@ def extract_preview(req: PreviewRequest) -> PreviewResponse:
     except Exception as exc:
         shutil.rmtree(tmpdir, ignore_errors=True)
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.get("/serve")
+def serve_preview_file(path: str) -> FileResponse:
+    """Serve an extracted preview file by absolute path.
+
+    Auth is handled by the router-level verify_token dependency, which accepts
+    the token via ?token= query param so <video>/<audio> src attributes work.
+    """
+    p = Path(path)
+    if not p.is_file():
+        raise HTTPException(status_code=404, detail="File not found")
+    return FileResponse(str(p))
 
 
 @router.delete("/{temp_id}")

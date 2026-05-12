@@ -1,0 +1,59 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "ArchiveTools",
+  "version": "0.2.0",
+  "identifier": "io.github.cheesytoast1416.archivetools",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "pnpm build",
+    "frontendDist": "../build"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "ArchiveTools",
+        "width": 1100,
+        "height": 720,
+        "minWidth": 780,
+        "minHeight": 620
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self' asset: https://asset.localhost; connect-src 'self' http://127.0.0.1:*; img-src 'self' asset: https://asset.localhost data: blob:; media-src 'self' asset: https://asset.localhost http://127.0.0.1:*; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'",
+      "assetProtocol": {
+        "enable": true,
+        "scope": [
+          "**"
+        ]
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "externalBin": [
+      "binaries/archivetools-server"
+    ]
+  },
+  "plugins": {
+    "shell": {
+      "open": false
+    },
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEE1MDJBQUY4NUQzQkZFMjgKUldRby9qdGQrS29DcFVsU1c3azE2K1VQWUxhZmsrTUQzR2pQWnkwY3lUL0lsbjJJcFhiSTN0UGsK",
+      "endpoints": [
+        "https://github.com/cheesytoast1416/ArchiveTools/releases/latest/download/latest.json"
+      ],
+      "dialog": false
+    }
+  }
+}

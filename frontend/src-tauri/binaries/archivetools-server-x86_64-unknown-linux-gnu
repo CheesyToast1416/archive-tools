@@ -1,0 +1,6 @@
+#!/bin/sh
+# Dev wrapper: runs the Python server from the project root.
+# In production this is replaced by the PyInstaller binary.
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../../../" && pwd)"
+exec /home/lance/miniconda3/envs/archivetools/bin/python "$PROJECT_ROOT/server/main.py" "$@"
