@@ -41,7 +41,13 @@ dev = [
     "pytest",
     "ruff",
     "mypy",
-    "pre-commit"
+    "pre-commit",
+    "pyinstaller",
+]
+server = [
+    "fastapi>=0.111",
+    "uvicorn[standard]>=0.29",
+    "sse-starlette>=2.1",
 ]
 
 [tool.setuptools.packages.find]
@@ -69,6 +75,8 @@ ignore = ["N802"]
 "archivetools/formats/*.py" = ["TID251"]
 "archivetools/operations/*.py" = ["TID251"]
 "tests/*.py" = ["TID251"]
+"server/*.py" = ["TID251"]
+"server/**/*.py" = ["TID251"]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -110,6 +118,13 @@ ignore_errors = true
 [[tool.mypy.overrides]]
 module = "archivetools.gui.*"
 ignore_errors = true
+
+# Server layer: fastapi, uvicorn, pydantic, sse_starlette lack complete stubs
+# in the pre-commit mypy environment.
+[[tool.mypy.overrides]]
+module = ["server.*", "fastapi.*", "uvicorn.*", "pydantic.*", "sse_starlette.*", "starlette.*"]
+ignore_errors = true
+ignore_missing_imports = true
 
 [tool.pyside6-project]
 files = ["main.py", "resources/licenses.qrc"]
