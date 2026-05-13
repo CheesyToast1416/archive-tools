@@ -188,7 +188,7 @@
   .nav-item.active {
     background: var(--accent-subtle);
     color: var(--accent);
-    box-shadow: inset 0 0 0 1px rgba(0, 122, 255, 0.18);
+    box-shadow: inset 0 0 0 0.5px var(--accent-subtle);
   }
 
   .nav-icon {
