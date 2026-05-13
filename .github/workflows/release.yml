@@ -112,6 +112,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: frontend/src-tauri -> target
+          save-if: ${{ runner.os != 'Windows' }}
 
       - name: Build Tauri app
         working-directory: frontend
