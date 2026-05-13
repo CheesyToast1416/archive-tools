@@ -44,7 +44,7 @@ def save_app_settings(body: AppSettingsModel) -> dict:
 
 @router.get("/ui", response_model=UIStateModel)
 def get_ui_state() -> UIStateModel:
-    from archivetools.gui.ui_state import get_ui_state
+    from archivetools.config.ui_state import get_ui_state
 
     u = get_ui_state()
     return UIStateModel(
@@ -57,7 +57,7 @@ def get_ui_state() -> UIStateModel:
 
 @router.put("/ui")
 def save_ui_state(body: UIStateModel) -> dict:
-    from archivetools.gui.ui_state import get_ui_state
+    from archivetools.config.ui_state import get_ui_state
 
     u = get_ui_state()
     u.theme = body.theme
