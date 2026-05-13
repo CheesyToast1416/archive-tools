@@ -121,6 +121,11 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
+      # ── Diagnose bundle output ────────────────────────────────────────────
+      - name: List bundle directory
+        shell: bash
+        run: find frontend/src-tauri/target/release/bundle -type f | sort
+
       # ── Collect updater metadata (bundle name + signature) ─────────────────
       # Produces update-meta/{platform}.json used by the release job to build
       # latest.json. Exits 0 silently when signing keys are absent (e.g. PRs).
