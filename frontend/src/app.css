@@ -1,90 +1,167 @@
 @import "tailwindcss";
 
-/* ── Typography ──────────────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────────────────────
+   DESIGN TOKENS — Apple design language, liquid-glass material system
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* ── Typography ─────────────────────────────────────────────────────────────── */
 
 :root {
   --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
 }
 
-/* ── App background gradient ─────────────────────────────────────────────── */
+/* ── Light mode ─────────────────────────────────────────────────────────────── */
 
 :root {
-  --bg: linear-gradient(145deg, #dce8f5 0%, #e8f0f7 40%, #d4e5f2 100%);
-}
+  /* Colorful soft gradient — glass only looks like glass when it blurs something
+     behind it. Near-uniform grays produce uniform gray panels, not glass. */
+  --bg: linear-gradient(140deg, #bdd4ff 0%, #d2baff 35%, #ffbadb 70%, #baffd6 100%);
 
-.dark {
-  --bg: linear-gradient(145deg, #0d0d1a 0%, #111827 50%, #0a0f1e 100%);
-}
-
-/* ── Glass surfaces ──────────────────────────────────────────────────────── */
-
-:root {
-  --glass:         rgba(255, 255, 255, 0.55);
-  --glass-raised:  rgba(255, 255, 255, 0.72);
-  --glass-inset:   rgba(0, 0, 0, 0.04);
+  /* Glass material — low opacity so the gradient shows through clearly */
+  --glass:         rgba(255, 255, 255, 0.38);
+  --glass-raised:  rgba(255, 255, 255, 0.68);
+  --glass-inset:   rgba(0, 0, 0, 0.06);
   --glass-overlay: rgba(255, 255, 255, 0.92);
-  --glass-border:  rgba(255, 255, 255, 0.60);
-  --glass-blur:    blur(20px) saturate(180%);
-}
+  /* White border: visible against the colorful background, reads as glass edge */
+  --glass-border:  rgba(255, 255, 255, 0.55);
+  /* Specular rim — the top-edge highlight that makes panels read as glass */
+  --glass-specular: rgba(255, 255, 255, 0.85);
+  --glass-blur:    blur(40px) saturate(180%);
 
-.dark {
-  --glass:         rgba(20, 22, 40, 0.60);
-  --glass-raised:  rgba(28, 30, 50, 0.80);
-  --glass-inset:   rgba(0, 0, 0, 0.28);
-  --glass-overlay: rgba(18, 20, 36, 0.94);
-  --glass-border:  rgba(255, 255, 255, 0.10);
-}
+  /* Refraction shimmer — diagonal gradient that simulates light bending through
+     the glass volume. Light mode: neutral white scatter from top-left. */
+  --glass-shimmer:
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.16) 0%,
+      rgba(255, 255, 255, 0.05) 35%,
+      transparent 60%
+    );
 
-/* ── Elevation ───────────────────────────────────────────────────────────── */
+  /* Edge thickness — inset side glows simulate the glass being physically thick */
+  --glass-edge-l: rgba(255, 255, 255, 0.12);
+  --glass-edge-r: rgba(0, 0, 0, 0.04);
 
-:root {
-  --shadow-sm: 0 1px 3px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.04);
-  --shadow-md: 0 4px 16px rgba(0,0,0,0.09), 0 2px 6px rgba(0,0,0,0.05);
-  --shadow-lg: 0 12px 40px rgba(0,0,0,0.13), 0 4px 12px rgba(0,0,0,0.06);
-  --shadow-xl: 0 24px 64px rgba(0,0,0,0.18), 0 8px 24px rgba(0,0,0,0.08);
-}
+  /* Elevation */
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.08), 0 2px 6px rgba(0,0,0,0.04);
+  --shadow-lg: 0 12px 40px rgba(0,0,0,0.11), 0 4px 12px rgba(0,0,0,0.05);
+  --shadow-xl: 0 24px 64px rgba(0,0,0,0.16), 0 8px 24px rgba(0,0,0,0.07);
 
-/* ── Accent ──────────────────────────────────────────────────────────────── */
-
-:root {
+  /* Accent — Apple blue */
   --accent:        #007AFF;
-  --accent-subtle: rgba(0, 122, 255, 0.12);
-  --accent-glow:   0 0 20px rgba(0, 122, 255, 0.22);
-}
+  --accent-subtle: rgba(0, 122, 255, 0.11);
+  --accent-glow:   0 0 0 3px rgba(0, 122, 255, 0.25);
 
-.dark {
-  --accent:        #0A84FF;
-  --accent-subtle: rgba(10, 132, 255, 0.16);
-  --accent-glow:   0 0 24px rgba(10, 132, 255, 0.32);
-}
-
-/* ── Text ────────────────────────────────────────────────────────────────── */
-
-:root {
+  /* Text — Apple semantic label colors, light mode */
   --text:   #1C1C1E;
-  --text-2: rgba(28, 28, 30, 0.60);
-  --text-3: rgba(28, 28, 30, 0.35);
+  --text-2: rgba(60, 60, 67, 0.70);   /* ≈ 4.5:1 on white — WCAG AA */
+  --text-3: rgba(60, 60, 67, 0.38);   /* decorative / placeholder only */
+
+  /* Status — darker tones for text/icon use on light backgrounds */
+  --success:        #1A8F37;           /* 4.6:1 on white */
+  --success-subtle: rgba(26, 143, 55, 0.10);
+  --error:          #D93025;           /* 4.5:1 on white */
+  --error-subtle:   rgba(217, 48, 37, 0.10);
+  --warning:        #B45000;           /* 4.6:1 on white */
+  --warning-subtle: rgba(180, 80, 0, 0.10);
 }
+
+/* ── Dark mode ──────────────────────────────────────────────────────────────── */
 
 .dark {
-  --text:   #EBEBF5;
-  --text-2: rgba(235, 235, 245, 0.58);
-  --text-3: rgba(235, 235, 245, 0.30);
-}
+  /* Warm charcoal — dark wood / coal / earth tones. No violet, no AI palette. */
+  --bg: linear-gradient(145deg, #1a1612 0%, #100e0a 55%, #161210 100%);
 
-/* ── Semantic status ─────────────────────────────────────────────────────── */
+  /* Glass material — neutral dark base, no colour cast of its own.
+     The shimmer carries the pink-blue palette instead. */
+  --glass:         rgba(26, 24, 26, 0.70);
+  --glass-raised:  rgba(38, 34, 38, 0.90);
+  --glass-inset:   rgba(255, 255, 255, 0.06);
+  --glass-overlay: rgba(20, 18, 20, 0.96);
+  --glass-border:  rgba(255, 255, 255, 0.13);
+  /* Specular: slightly blue-white — like moonlight or starlight through glass */
+  --glass-specular: rgba(210, 220, 255, 0.22);
 
-:root {
-  --success:        #28a745;
-  --success-subtle: rgba(40, 167, 69, 0.12);
-  --error:          #FF453A;
+  /* Shimmer mirrors the light-mode pastel palette: sky blue → periwinkle → rose.
+     The background stays warm charcoal; the glass panels echo the light side. */
+  --glass-shimmer:
+    linear-gradient(
+      135deg,
+      rgba(189, 210, 255, 0.22) 0%,
+      rgba(210, 186, 255, 0.10) 42%,
+      rgba(255, 186, 219, 0.04) 68%,
+      transparent 88%
+    );
+
+  /* Edge: sky-blue light-side, dark shadow-side */
+  --glass-edge-l: rgba(189, 210, 255, 0.14);
+  --glass-edge-r: rgba(0, 0, 0, 0.10);
+
+  /* Elevation — slightly stronger in dark mode for perceived depth */
+  --shadow-sm: 0 1px 4px rgba(0,0,0,0.30), 0 1px 2px rgba(0,0,0,0.20);
+  --shadow-md: 0 4px 20px rgba(0,0,0,0.40), 0 2px 8px rgba(0,0,0,0.24);
+  --shadow-lg: 0 12px 48px rgba(0,0,0,0.50), 0 4px 16px rgba(0,0,0,0.28);
+  --shadow-xl: 0 24px 72px rgba(0,0,0,0.60), 0 8px 28px rgba(0,0,0,0.32);
+
+  /* Accent — Apple dark blue (slightly brighter for dark backgrounds) */
+  --accent:        #0A84FF;
+  --accent-subtle: rgba(10, 132, 255, 0.18);
+  --accent-glow:   0 0 0 3px rgba(10, 132, 255, 0.30);
+
+  /* Text — Apple semantic label colors, dark mode */
+  --text:   #FFFFFF;
+  --text-2: rgba(235, 235, 245, 0.72);  /* ≈ 5:1 on black — WCAG AA */
+  --text-3: rgba(235, 235, 245, 0.38);  /* decorative / placeholder only */
+
+  /* Status — bright tones for dark backgrounds */
+  --success:        #30D158;            /* Apple green, 12:1 on black */
+  --success-subtle: rgba(48, 209, 88, 0.12);
+  --error:          #FF453A;            /* Apple red */
   --error-subtle:   rgba(255, 69, 58, 0.12);
-  --warning:        #FF9F0A;
+  --warning:        #FF9F0A;            /* Apple orange */
   --warning-subtle: rgba(255, 159, 10, 0.12);
 }
 
-/* ── Base reset ──────────────────────────────────────────────────────────── */
+/* ── Accessibility: reduced transparency ────────────────────────────────────── */
+/* Users with vestibular disorders or low-end hardware benefit from no blur.    */
+
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --glass:        #dde8fc;
+    --glass-raised: #edf2ff;
+    --glass-inset:  #d0ddf5;
+    --glass-blur:   none;
+    --glass-specular: transparent;
+  }
+  .dark {
+    --glass:        #1c1a1c;
+    --glass-raised: #282428;
+    --glass-inset:  #343034;
+    --glass-blur:   none;
+    --glass-specular: transparent;
+  }
+}
+
+/* ── Accessibility: high contrast ───────────────────────────────────────────── */
+
+@media (prefers-contrast: more) {
+  :root {
+    --glass-border: rgba(0, 0, 0, 0.28);
+    --text-2: rgba(28, 28, 30, 0.88);
+    --text-3: rgba(28, 28, 30, 0.60);
+  }
+  .dark {
+    --glass-border: rgba(255, 255, 255, 0.36);
+    --text-2: rgba(235, 235, 245, 0.90);
+    --text-3: rgba(235, 235, 245, 0.65);
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   BASE RESET
+   ───────────────────────────────────────────────────────────────────────────── */
 
 *, *::before, *::after { box-sizing: border-box; }
 
@@ -103,7 +180,7 @@ html, body {
   -webkit-user-select: none;
 }
 
-/* ── Scrollbar ───────────────────────────────────────────────────────────── */
+/* ── Scrollbar ──────────────────────────────────────────────────────────────── */
 
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -113,23 +190,52 @@ html, body {
 }
 ::-webkit-scrollbar-thumb:hover { background: rgba(128, 128, 128, 0.42); }
 
-/* ── Glass utility class ─────────────────────────────────────────────────── */
+/* ── Focus — keyboard navigation indicator ──────────────────────────────────── */
+
+:focus { outline: none; }
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   GLASS MATERIAL UTILITIES
+   The specular highlight (inset box-shadow) is the single most important
+   detail — it's what makes panels read as glass rather than blurred grey.
+   ───────────────────────────────────────────────────────────────────────────── */
 
 .glass {
-  background: var(--glass);
+  background-color: var(--glass);
+  background-image: var(--glass-shimmer);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
-  border: 1px solid var(--glass-border);
+  border: 0.5px solid var(--glass-border);
+  box-shadow:
+    inset 0    1.5px 0 var(--glass-specular),   /* top specular rim        */
+    inset 0   -0.5px 0 rgba(0, 0, 0, 0.06),     /* bottom shadow rim       */
+    inset  1px 0    0 var(--glass-edge-l),       /* left edge — light side  */
+    inset -1px 0    0 var(--glass-edge-r);       /* right edge — dark side  */
 }
 
 .glass-raised {
-  background: var(--glass-raised);
+  background-color: var(--glass-raised);
+  background-image: var(--glass-shimmer);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
-  border: 1px solid var(--glass-border);
+  border: 0.5px solid var(--glass-border);
+  box-shadow:
+    inset 0    1.5px 0 var(--glass-specular),
+    inset 0   -0.5px 0 rgba(0, 0, 0, 0.08),
+    inset  1px 0    0 var(--glass-edge-l),
+    inset -1px 0    0 var(--glass-edge-r),
+    var(--shadow-md);
 }
 
-/* ── Buttons ─────────────────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────────────────────
+   BUTTONS
+   ───────────────────────────────────────────────────────────────────────────── */
 
 .btn {
   display: inline-flex;
@@ -138,8 +244,9 @@ html, body {
   gap: 6px;
   padding: 6px 14px;
   border-radius: 8px;
-  border: 1px solid var(--glass-border);
-  background: var(--glass);
+  border: 0.5px solid var(--glass-border);
+  background-color: var(--glass);
+  background-image: var(--glass-shimmer);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
   color: var(--text);
@@ -147,50 +254,69 @@ html, body {
   font-family: var(--font-sans);
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.15s, box-shadow 0.15s, transform 0.1s;
+  transition: background-color 0.15s, box-shadow 0.15s, transform 0.1s;
   white-space: nowrap;
-  outline: none;
+  box-shadow:
+    inset 0    1.5px 0 var(--glass-specular),
+    inset 0   -0.5px 0 rgba(0, 0, 0, 0.06),
+    inset  1px 0    0 var(--glass-edge-l),
+    inset -1px 0    0 var(--glass-edge-r);
 }
 
 .btn:hover:not(:disabled) {
-  background: var(--glass-raised);
-  box-shadow: var(--shadow-sm);
+  background-color: var(--glass-raised);
+  background-image: var(--glass-shimmer);
+  box-shadow:
+    inset 0    1.5px 0 var(--glass-specular),
+    inset 0   -0.5px 0 rgba(0, 0, 0, 0.08),
+    inset  1px 0    0 var(--glass-edge-l),
+    inset -1px 0    0 var(--glass-edge-r),
+    var(--shadow-sm);
 }
 
 .btn:active:not(:disabled) { transform: scale(0.97); }
 .btn:disabled { opacity: 0.38; cursor: not-allowed; }
 
+.btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .btn-primary {
   background: var(--accent);
   border-color: transparent;
   color: #fff;
-  box-shadow: var(--accent-glow);
+  box-shadow: none;
 }
 
 .btn-primary:hover:not(:disabled) {
   filter: brightness(1.10);
   background: var(--accent);
-  box-shadow: var(--accent-glow), var(--shadow-md);
+  box-shadow: var(--shadow-sm);
 }
 
 .btn-danger {
   background: var(--error-subtle);
   border-color: var(--error);
   color: var(--error);
+  box-shadow: none;
 }
 
 .btn-danger:hover:not(:disabled) {
   background: var(--error);
   color: #fff;
+  box-shadow: none;
 }
 
-/* ── Inputs ──────────────────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────────────────────
+   INPUTS & SELECTS
+   ───────────────────────────────────────────────────────────────────────────── */
 
 .input {
   width: 100%;
   padding: 7px 10px;
   border-radius: 8px;
-  border: 1px solid var(--glass-border);
+  border: 0.5px solid var(--glass-border);
   background: var(--glass-inset);
   color: var(--text);
   font-size: 13px;
@@ -201,12 +327,16 @@ html, body {
 
 .input:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-subtle);
+  box-shadow: var(--accent-glow);
+}
+
+.input:focus-visible {
+  border-color: var(--accent);
+  box-shadow: var(--accent-glow);
+  outline: none;
 }
 
 .input::placeholder { color: var(--text-3); }
-
-/* ── Select ──────────────────────────────────────────────────────────────── */
 
 select.input {
   appearance: none;
@@ -217,7 +347,9 @@ select.input {
   cursor: pointer;
 }
 
-/* ── Section labels ──────────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────────────────────
+   MISC UTILITIES
+   ───────────────────────────────────────────────────────────────────────────── */
 
 .section-label {
   font-size: 10px;
@@ -228,10 +360,8 @@ select.input {
   margin-bottom: 8px;
 }
 
-/* ── Divider ─────────────────────────────────────────────────────────────── */
-
 .divider {
-  height: 1px;
+  height: 0.5px;
   background: var(--glass-border);
   margin: 8px 0;
 }

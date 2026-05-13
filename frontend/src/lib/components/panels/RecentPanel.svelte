@@ -195,6 +195,13 @@
 
   .card:active { transform: translateY(-1px); }
 
+  /* Dark mode: make cards more opaque so text/icons are legible against
+     the dark gradient background. The global .glass-raised (0.88) is too
+     transparent here — content bleeds through and reduces readability. */
+  :global(.dark) .card {
+    background-color: rgba(42, 38, 44, 0.96);
+  }
+
   .card-icon-wrap {
     position: relative;
     width: 48px;
