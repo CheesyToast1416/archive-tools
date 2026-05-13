@@ -44,10 +44,10 @@ jobs:
             sidecar_src: dist/archivetools-server
             sidecar_dst: archivetools-server-aarch64-apple-darwin
 
-          - os: macos-13
-            triple: x86_64-apple-darwin
-            sidecar_src: dist/archivetools-server
-            sidecar_dst: archivetools-server-x86_64-apple-darwin
+          # - os: macos-13
+          #   triple: x86_64-apple-darwin
+          #   sidecar_src: dist/archivetools-server
+          #   sidecar_dst: archivetools-server-x86_64-apple-darwin
 
           - os: windows-latest
             triple: x86_64-pc-windows-msvc
