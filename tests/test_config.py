@@ -1,4 +1,4 @@
-"""Tests for config.settings, gui.ui_state, and config.passwords."""
+"""Tests for config.settings, config.ui_state, and config.passwords."""
 
 from __future__ import annotations
 
@@ -9,8 +9,8 @@ from unittest.mock import patch
 import pytest
 
 from archivetools.config.settings import AppSettings, _reset_for_tests, get_settings
-from archivetools.gui.ui_state import UIState, get_ui_state
-from archivetools.gui.ui_state import _reset_for_tests as _reset_ui_state
+from archivetools.config.ui_state import UIState, get_ui_state
+from archivetools.config.ui_state import _reset_for_tests as _reset_ui_state
 
 # ── AppSettings ───────────────────────────────────────────────────────────────
 
@@ -102,7 +102,7 @@ class TestUIState:
     def test_load_from_file(self, tmp_path: Path) -> None:
         cfg = tmp_path / "ui_state.json"
         cfg.write_text(json.dumps({"active_nav": 3, "theme": "dark"}), encoding="utf-8")
-        with patch("archivetools.gui.ui_state._UI_STATE_PATH", cfg):
+        with patch("archivetools.config.ui_state._UI_STATE_PATH", cfg):
             s = UIState.load()
         assert s.active_nav == 3
         assert s.theme == "dark"
@@ -113,7 +113,7 @@ class TestUIState:
             json.dumps({"unknown_future_key": True, "active_nav": 2}),
             encoding="utf-8",
         )
-        with patch("archivetools.gui.ui_state._UI_STATE_PATH", cfg):
+        with patch("archivetools.config.ui_state._UI_STATE_PATH", cfg):
             s = UIState.load()
         assert s.active_nav == 2
         assert not hasattr(s, "unknown_future_key")
@@ -121,7 +121,7 @@ class TestUIState:
     def test_load_corrupt_file_returns_defaults(self, tmp_path: Path) -> None:
         cfg = tmp_path / "ui_state.json"
         cfg.write_bytes(b"not valid json {{")
-        with patch("archivetools.gui.ui_state._UI_STATE_PATH", cfg):
+        with patch("archivetools.config.ui_state._UI_STATE_PATH", cfg):
             s = UIState.load()
         assert s == UIState()
 
@@ -129,8 +129,8 @@ class TestUIState:
         cfg = tmp_path / "ui_state.json"
         cfg_dir = tmp_path
         with (
-            patch("archivetools.gui.ui_state._UI_STATE_PATH", cfg),
-            patch("archivetools.gui.ui_state._CONFIG_DIR", cfg_dir),
+            patch("archivetools.config.ui_state._UI_STATE_PATH", cfg),
+            patch("archivetools.config.ui_state._CONFIG_DIR", cfg_dir),
         ):
             s = UIState(active_nav=2)
             s.save()
@@ -142,8 +142,8 @@ class TestUIState:
         cfg_dir = tmp_path
         paths = ["/home/user/a.zip", "/home/user/b.rar"]
         with (
-            patch("archivetools.gui.ui_state._UI_STATE_PATH", cfg),
-            patch("archivetools.gui.ui_state._CONFIG_DIR", cfg_dir),
+            patch("archivetools.config.ui_state._UI_STATE_PATH", cfg),
+            patch("archivetools.config.ui_state._CONFIG_DIR", cfg_dir),
         ):
             s = UIState(recent_archives=paths)
             s.save()
@@ -155,8 +155,8 @@ class TestUIState:
         cfg = tmp_path / "ui_state.json"
         cfg_dir = tmp_path
         with (
-            patch("archivetools.gui.ui_state._UI_STATE_PATH", cfg),
-            patch("archivetools.gui.ui_state._CONFIG_DIR", cfg_dir),
+            patch("archivetools.config.ui_state._UI_STATE_PATH", cfg),
+            patch("archivetools.config.ui_state._CONFIG_DIR", cfg_dir),
         ):
             a = get_ui_state()
             b = get_ui_state()
@@ -171,9 +171,9 @@ class TestUIState:
         )
         ui_cfg = tmp_path / "ui_state.json"
         with (
-            patch("archivetools.gui.ui_state._UI_STATE_PATH", ui_cfg),
-            patch("archivetools.gui.ui_state._LEGACY_SETTINGS_PATH", legacy_cfg),
-            patch("archivetools.gui.ui_state._CONFIG_DIR", tmp_path),
+            patch("archivetools.config.ui_state._UI_STATE_PATH", ui_cfg),
+            patch("archivetools.config.ui_state._LEGACY_SETTINGS_PATH", legacy_cfg),
+            patch("archivetools.config.ui_state._CONFIG_DIR", tmp_path),
         ):
             s = UIState.load()
         assert s.active_nav == 4

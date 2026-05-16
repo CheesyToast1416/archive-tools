@@ -13,12 +13,10 @@ keywords = ["archive", "zip", "rar", "7z", "tar", "cjk", "encoding"]
 classifiers = [
     "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
     "Programming Language :: Python :: 3",
-    "Environment :: X11 Applications :: Qt",
     "Topic :: System :: Archiving",
 ]
 requires-python = ">=3.12"
 dependencies = [
-    "pyside6>=6.7",
     "rarfile",
     "cryptography",
     "pyzipper",
@@ -32,9 +30,6 @@ dependencies = [
 
 [project.scripts]
 archivetools = "archivetools.cli:main"
-
-[project.gui-scripts]
-archivetools-gui = "archivetools.gui.app:main"
 
 [project.optional-dependencies]
 dev = [
@@ -63,7 +58,6 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "N", "TID"]
-# N802: Qt requires camelCase for event-handler overrides (dragEnterEvent, dropEvent, etc.)
 ignore = ["N802"]
 
 [tool.ruff.lint.flake8-tidy-imports.banned-api]
@@ -91,14 +85,6 @@ disallow_incomplete_defs = true
 check_untyped_defs = true
 no_implicit_optional = true
 
-[[tool.mypy.overrides]]
-module = "PySide6.*"
-ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-module = "resources.*"
-ignore_errors = true
-
 # Third-party libraries without stubs
 [[tool.mypy.overrides]]
 module = ["pyzipper", "rarfile", "py7zr", "charset_normalizer", "send2trash", "keyring"]
@@ -113,18 +99,9 @@ ignore_missing_imports = true
 module = "tests.*"
 ignore_errors = true
 
-# GUI layer: PySide6 stubs are incomplete; Signal, findChild, etc. produce many
-# false positives that can't be fixed without custom stubs.
-[[tool.mypy.overrides]]
-module = "archivetools.gui.*"
-ignore_errors = true
-
 # Server layer: fastapi, uvicorn, pydantic, sse_starlette lack complete stubs
 # in the pre-commit mypy environment.
 [[tool.mypy.overrides]]
 module = ["server.*", "fastapi.*", "uvicorn.*", "pydantic.*", "sse_starlette.*", "starlette.*"]
 ignore_errors = true
 ignore_missing_imports = true
-
-[tool.pyside6-project]
-files = ["main.py", "resources/licenses.qrc"]
