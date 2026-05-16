@@ -34,7 +34,11 @@
   }
 
   @keyframes shimmer-slide {
-    0%   { transform: translateX(-120%); }
-    100% { transform: translateX(280%); }
+    0% {
+      transform: translateX(-120%);
+    }
+    100% {
+      transform: translateX(280%);
+    }
   }
 </style>

@@ -19,9 +19,7 @@ export async function loadAppSettings(): Promise<void> {
   appSettings.set(s);
 }
 
-export async function persistAppSettings(
-  patch: Partial<AppSettings>,
-): Promise<void> {
+export async function persistAppSettings(patch: Partial<AppSettings>): Promise<void> {
   appSettings.update((s) => ({ ...s, ...patch }));
   await saveAppSettings(get(appSettings));
 }

@@ -11,7 +11,7 @@
     Settings,
     Sun,
   } from "lucide-svelte";
-  import { uiState, persistUIState, applyTheme } from "../stores/uiState";
+  import { applyTheme, persistUIState, uiState } from "../stores/uiState";
   import { NAV_BATCH, NAV_CONVERT, NAV_CREATE, NAV_EXTRACT, NAV_RECENT } from "../constants";
   import SettingsDialog from "./dialogs/SettingsDialog.svelte";
   import PasswordManager from "./dialogs/PasswordManager.svelte";
@@ -20,10 +20,10 @@
   let showPasswords = false;
 
   const navItems = [
-    { idx: NAV_RECENT,  label: "Recent",  Icon: Clock        },
-    { idx: NAV_EXTRACT, label: "Extract", Icon: PackageOpen   },
-    { idx: NAV_CREATE,  label: "Create",  Icon: PackagePlus   },
-    { idx: NAV_BATCH,   label: "Batch",   Icon: Layers        },
+    { idx: NAV_RECENT, label: "Recent", Icon: Clock },
+    { idx: NAV_EXTRACT, label: "Extract", Icon: PackageOpen },
+    { idx: NAV_CREATE, label: "Create", Icon: PackagePlus },
+    { idx: NAV_BATCH, label: "Batch", Icon: Layers },
     { idx: NAV_CONVERT, label: "Convert", Icon: ArrowLeftRight },
   ];
 
@@ -51,7 +51,9 @@
 <aside class="sidebar">
   <!-- Brand -->
   <div class="brand">
-    <div class="brand-icon"><Archive size={16} color="var(--accent)" /></div>
+    <div class="brand-icon">
+      <Archive size={16} color="var(--accent)" />
+    </div>
     <span class="brand-name">ArchiveTools</span>
   </div>
 
@@ -59,7 +61,7 @@
 
   <!-- Navigation -->
   <nav class="nav">
-    {#each navItems as { idx, label, Icon }}
+    {#each navItems as { idx, label, Icon } (idx)}
       <button
         class="nav-item"
         class:active={$uiState.active_nav === idx}
@@ -176,7 +178,10 @@
     font-weight: 500;
     cursor: pointer;
     text-align: left;
-    transition: background 0.12s, color 0.12s, box-shadow 0.12s;
+    transition:
+      background 0.12s,
+      color 0.12s,
+      box-shadow 0.12s;
     width: 100%;
   }
 
@@ -197,11 +202,15 @@
     flex-shrink: 0;
   }
 
-  .nav-label { flex: 1; }
+  .nav-label {
+    flex: 1;
+  }
 
   /* ── Spacer ───────────────────────────────────────────────── */
 
-  .spacer { flex: 1; }
+  .spacer {
+    flex: 1;
+  }
 
   /* ── Bottom actions ───────────────────────────────────────── */
 
@@ -222,7 +231,9 @@
     background: transparent;
     color: var(--text-2);
     cursor: pointer;
-    transition: background 0.12s, color 0.12s;
+    transition:
+      background 0.12s,
+      color 0.12s;
     flex-shrink: 0;
   }
 

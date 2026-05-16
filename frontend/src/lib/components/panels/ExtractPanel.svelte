@@ -1,18 +1,31 @@
 <script lang="ts">
   import { open } from "@tauri-apps/plugin-dialog";
   import { onDestroy, onMount } from "svelte";
-  import { Archive, ChevronDown, ChevronRight, Download, Folder, Pencil, ShieldCheck, X } from "lucide-svelte";
   import {
-    listArchive, getArchiveInfo, extractArchive, testArchive,
-    updateArchive, detectEncoding,
-    extractPreview, cleanupPreview, getPreviewServeUrl,
+    Archive,
+    ChevronDown,
+    ChevronRight,
+    Download,
+    Folder,
+    Pencil,
+    ShieldCheck,
+    X,
+  } from "lucide-svelte";
+  import {
+    cleanupPreview,
+    detectEncoding,
+    extractArchive,
+    extractPreview,
+    getArchiveInfo,
+    getPreviewServeUrl,
     type InfoResponse,
-  } from "../../api/archives";
-  import { addRecent } from "../../stores/uiState";
-  import { appSettings } from "../../stores/appSettings";
-  import { pendingArchivePath } from "../../stores/archive";
-  import { ARCHIVE_EXTENSIONS } from "../../constants";
-
+    listArchive,
+    testArchive,
+    updateArchive,
+  } from "$lib/api/archives";
+  import { addRecent } from "$lib/stores/uiState";
+  import { appSettings } from "$lib/stores/appSettings";
+  import { pendingArchivePath } from "$lib/stores/archive";
   import FileDropZone from "../widgets/FileDropZone.svelte";
   import ArchiveTree from "../widgets/ArchiveTree.svelte";
   import PreviewPane from "../widgets/PreviewPane.svelte";
@@ -63,8 +76,15 @@
     if (previewTempId) cleanupPreview(previewTempId).catch(() => {});
   });
 
-  function archiveName(p: string) { return p.split(/[\\/]/).pop() ?? p; }
-  function archiveDir(p: string) { const parts = p.split(/[\\/]/); parts.pop(); return parts.join("/") || p; }
+  function archiveName(p: string) {
+    return p.split(/[\\/]/).pop() ?? p;
+  }
+
+  function archiveDir(p: string) {
+    const parts = p.split(/[\\/]/);
+    parts.pop();
+    return parts.join("/") || p;
+  }
 
   async function openArchive(path: string) {
     archivePath = path;
@@ -98,17 +118,25 @@
           const detected = await detectEncoding({ archive_path: path }).catch(() => null);
           if (detected?.encoding && detected.confidence > 0.7) {
             filenameEncoding = detected.encoding;
-            log = [`Auto-detected encoding: ${detected.encoding} (${Math.round(detected.confidence * 100)}%)`];
+            log = [
+              `Auto-detected encoding: ${detected.encoding} (${Math.round(detected.confidence * 100)}%)`,
+            ];
           }
         }
         // Fetch archive metadata for the Info panel
         getArchiveInfo({ archive_path: path, password: password || undefined })
-          .then(info => { archiveInfo = info; })
+          .then((info) => {
+            archiveInfo = info;
+          })
           .catch(() => {});
       } else {
         const pwd = await promptPassword("Archive is password-protected. Enter password:");
-        if (pwd !== null) { password = pwd; await listEntries(path); }
-        else { closeArchive(); }
+        if (pwd !== null) {
+          password = pwd;
+          await listEntries(path);
+        } else {
+          closeArchive();
+        }
       }
     } catch (e) {
       log = [`✗ ${e}`];
@@ -123,7 +151,10 @@
     previewEntry = null;
     previewFilePath = null;
     previewServeUrl = null;
-    if (previewTempId) { cleanupPreview(previewTempId).catch(() => {}); previewTempId = null; }
+    if (previewTempId) {
+      cleanupPreview(previewTempId).catch(() => {});
+      previewTempId = null;
+    }
     archiveInfo = null;
     log = [];
     editMode = false;
@@ -165,13 +196,24 @@
         smart: $appSettings.smart_extraction,
       },
       {
-        progress:       (d: any) => { progress = d.total > 0 ? d.current / d.total : null; },
+        progress: (d: any) => {
+          progress = d.total > 0 ? d.current / d.total : null;
+        },
         bytes_progress: () => {},
-        log:            (d: any) => { log = [...log, d.message]; },
-        complete:       (d: any) => { log = [...log, d.ok ? "✓ Extraction complete." : "✗ Extraction failed."]; },
-        error:          (d: any) => { log = [...log, `✗ ${d.message}`]; },
+        log: (d: any) => {
+          log = [...log, d.message];
+        },
+        complete: (d: any) => {
+          log = [...log, d.ok ? "✓ Extraction complete." : "✗ Extraction failed."];
+        },
+        error: (d: any) => {
+          log = [...log, `✗ ${d.message}`];
+        },
       }
-    ).finally(() => { working = false; progress = null; });
+    ).finally(() => {
+      working = false;
+      progress = null;
+    });
   }
 
   async function onEntrySelected(e: CustomEvent<string>) {
@@ -180,7 +222,12 @@
     previewEntry = entry;
 
     // Clean up previous preview
-    if (previewTempId) { cleanupPreview(previewTempId).catch(() => {}); previewTempId = null; previewFilePath = null; previewServeUrl = null; }
+    if (previewTempId) {
+      cleanupPreview(previewTempId).catch(() => {});
+      previewTempId = null;
+      previewFilePath = null;
+      previewServeUrl = null;
+    }
 
     previewLoading = true;
     try {
@@ -232,7 +279,9 @@
     const result = await detectEncoding({ archive_path: archivePath }).catch(() => null);
     if (result?.encoding) {
       filenameEncoding = result.encoding;
-      log = [`Detected encoding: ${result.encoding} (confidence: ${Math.round(result.confidence * 100)}%)`];
+      log = [
+        `Detected encoding: ${result.encoding} (confidence: ${Math.round(result.confidence * 100)}%)`,
+      ];
     }
   }
 
@@ -289,7 +338,14 @@
         {#if editMode}
           <div class="edit-actions">
             <button class="btn" onclick={() => treeComponent?.saveEdits()}>Save</button>
-            <button class="btn" onclick={() => { editMode = false; treeComponent?.cancelEdits(); }}>Cancel</button>
+            <button
+              class="btn"
+              onclick={() => {
+                editMode = false;
+                treeComponent?.cancelEdits();
+              }}
+              >Cancel
+            </button>
           </div>
         {/if}
       </div>
@@ -308,7 +364,12 @@
       <PasswordField bind:value={password} placeholder="Password" disabled={working} />
 
       <div class="output-row">
-        <input class="input" bind:value={outputDir} placeholder="Output directory (default: smart)" readonly />
+        <input
+          class="input"
+          bind:value={outputDir}
+          placeholder="Output directory (default: smart)"
+          readonly
+        />
         <button class="btn" onclick={browseOutputDir} title="Browse">
           <Folder size={13} />
         </button>
@@ -340,7 +401,11 @@
 
       <div class="actions-row">
         <button class="btn encoding-toggle" onclick={() => (showEncoding = !showEncoding)}>
-          {#if showEncoding}<ChevronDown size={12} />{:else}<ChevronRight size={12} />{/if}
+          {#if showEncoding}
+            <ChevronDown size={12} />
+          {:else}
+            <ChevronRight size={12} />
+          {/if}
           Encoding
         </button>
         <div style="flex:1"></div>
@@ -353,7 +418,11 @@
             <Pencil size={13} />
             Edit
           </button>
-          <button class="btn btn-primary" onclick={doExtract} disabled={working || entries.length === 0}>
+          <button
+            class="btn btn-primary"
+            onclick={doExtract}
+            disabled={working || entries.length === 0}
+          >
             <Download size={13} />
             Extract
           </button>
@@ -366,15 +435,16 @@
 </div>
 
 {#if showPasswordPrompt}
-  <PasswordPrompt
-    message={promptMessage}
-    onSubmit={onPromptSubmit}
-    onCancel={onPromptCancel}
-  />
+  <PasswordPrompt message={promptMessage} onSubmit={onPromptSubmit} onCancel={onPromptCancel} />
 {/if}
 
 <style>
-  .panel { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+  .panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+  }
 
   /* ── Archive bar ──────────────────────────────────────────── */
 
@@ -402,7 +472,10 @@
     flex-shrink: 0;
   }
 
-  .arch-info { flex: 1; overflow: hidden; }
+  .arch-info {
+    flex: 1;
+    overflow: hidden;
+  }
 
   .arch-name {
     font-size: 13px;
@@ -435,14 +508,25 @@
     background: transparent;
     color: var(--text-3);
     cursor: pointer;
-    transition: background 0.12s, color 0.12s;
+    transition:
+      background 0.12s,
+      color 0.12s;
   }
 
-  .close-btn:hover { background: var(--error-subtle); color: var(--error); }
+  .close-btn:hover {
+    background: var(--error-subtle);
+    color: var(--error);
+  }
 
   /* ── Main split ───────────────────────────────────────────── */
 
-  .main-split { display: flex; flex: 1; overflow: hidden; min-height: 0; gap: 0; }
+  .main-split {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    min-height: 0;
+    gap: 0;
+  }
 
   .left-pane {
     display: flex;
@@ -482,10 +566,33 @@
     flex-shrink: 0;
   }
 
-  .output-row, .encoding-row { display: flex; gap: 6px; align-items: center; }
-  .output-row .input, .encoding-row .input { flex: 1; }
-  .enc-label { font-size: 11px; color: var(--text-3); width: 60px; flex-shrink: 0; }
+  .output-row,
+  .encoding-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
 
-  .actions-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-  .encoding-toggle { color: var(--text-2); }
+  .output-row .input,
+  .encoding-row .input {
+    flex: 1;
+  }
+
+  .enc-label {
+    font-size: 11px;
+    color: var(--text-3);
+    width: 60px;
+    flex-shrink: 0;
+  }
+
+  .actions-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .encoding-toggle {
+    color: var(--text-2);
+  }
 </style>

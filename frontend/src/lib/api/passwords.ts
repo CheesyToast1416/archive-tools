@@ -20,7 +20,7 @@ export function addPassword(params: {
 
 export function updatePassword(
   id: string,
-  params: { label?: string; password?: string; hint?: string },
+  params: { label?: string; password?: string; hint?: string }
 ): Promise<{ ok: boolean }> {
   return apiPut(`/passwords/${id}`, params);
 }

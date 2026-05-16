@@ -7,24 +7,59 @@ export interface ArchiveFormat {
 }
 
 export const ARCHIVE_FORMATS: ArchiveFormat[] = [
-  { label: "ZIP (no password)", key: "zip", ext: ".zip", supportsPassword: false },
-  { label: "ZIP (AES-256 encrypted)", key: "zip-aes", ext: ".zip", supportsPassword: true },
+  {
+    label: "ZIP (no password)",
+    key: "zip",
+    ext: ".zip",
+    supportsPassword: false,
+  },
+  {
+    label: "ZIP (AES-256 encrypted)",
+    key: "zip-aes",
+    ext: ".zip",
+    supportsPassword: true,
+  },
   { label: "7z", key: "7z", ext: ".7z", supportsPassword: true },
   { label: "TAR (.tar)", key: "tar", ext: ".tar", supportsPassword: false },
-  { label: "TAR.GZ (.tar.gz)", key: "tar.gz", ext: ".tar.gz", supportsPassword: false },
-  { label: "TAR.BZ2 (.tar.bz2)", key: "tar.bz2", ext: ".tar.bz2", supportsPassword: false },
-  { label: "TAR.XZ (.tar.xz)", key: "tar.xz", ext: ".tar.xz", supportsPassword: false },
+  {
+    label: "TAR.GZ (.tar.gz)",
+    key: "tar.gz",
+    ext: ".tar.gz",
+    supportsPassword: false,
+  },
+  {
+    label: "TAR.BZ2 (.tar.bz2)",
+    key: "tar.bz2",
+    ext: ".tar.bz2",
+    supportsPassword: false,
+  },
+  {
+    label: "TAR.XZ (.tar.xz)",
+    key: "tar.xz",
+    ext: ".tar.xz",
+    supportsPassword: false,
+  },
 ];
 
 export const ARCHIVE_EXTENSIONS = [
-  "zip", "rar", "7z", "z01", "r00", "r01", "001",
-  "tar", "tar.gz", "tgz", "tar.bz2", "tar.xz",
+  "zip",
+  "rar",
+  "7z",
+  "z01",
+  "r00",
+  "r01",
+  "001",
+  "tar",
+  "tar.gz",
+  "tgz",
+  "tar.bz2",
+  "tar.xz",
 ];
 
-export const NAV_RECENT  = 0;
+export const NAV_RECENT = 0;
 export const NAV_EXTRACT = 1;
-export const NAV_CREATE  = 2;
-export const NAV_BATCH   = 3;
+export const NAV_CREATE = 2;
+export const NAV_BATCH = 3;
 export const NAV_CONVERT = 4;
 
 /** Format bytes as human-readable string (B / KB / MB / GB / TB) */

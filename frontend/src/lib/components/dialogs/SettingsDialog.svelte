@@ -1,11 +1,16 @@
 <script lang="ts">
+  import { getVersion } from "@tauri-apps/api/app";
   import { Settings, X } from "lucide-svelte";
-  import { createEventDispatcher } from "svelte";
-  import { appSettings, persistAppSettings } from "../../stores/appSettings";
+  import { createEventDispatcher, onMount } from "svelte";
+  import { appSettings, persistAppSettings } from "$lib/stores/appSettings";
 
   const dispatch = createEventDispatcher<{ close: void }>();
 
   let draft = { ...$appSettings };
+  let version = "";
+  onMount(async () => {
+    version = await getVersion();
+  });
 
   async function save() {
     await persistAppSettings(draft);
@@ -16,9 +21,13 @@
 <div class="overlay">
   <div class="dialog glass-raised">
     <div class="dialog-header">
-      <div class="header-icon"><Settings size={16} color="var(--accent)" /></div>
+      <div class="header-icon">
+        <Settings size={16} color="var(--accent)" />
+      </div>
       <span class="dialog-title">Preferences</span>
-      <button class="close-btn" onclick={() => dispatch("close")}><X size={14} /></button>
+      <button class="close-btn" onclick={() => dispatch("close")}>
+        <X size={14} />
+      </button>
     </div>
 
     <div class="dialog-body">
@@ -43,7 +52,11 @@
             <div class="setting-info">
               <span class="setting-name">Default output directory</span>
             </div>
-            <input class="input field-input" bind:value={draft.default_output_dir} placeholder="Same as archive" />
+            <input
+              class="input field-input"
+              bind:value={draft.default_output_dir}
+              placeholder="Same as archive"
+            />
           </div>
         </div>
       </section>
@@ -111,6 +124,7 @@
     </div>
 
     <div class="dialog-footer">
+      <span class="version-tag">v{version}</span>
       <button class="btn" onclick={() => dispatch("close")}>Cancel</button>
       <button class="btn btn-primary" onclick={save}>Save Changes</button>
     </div>
@@ -121,7 +135,7 @@
   .overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.40);
+    background: rgba(0, 0, 0, 0.4);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     display: flex;
@@ -162,7 +176,12 @@
     flex-shrink: 0;
   }
 
-  .dialog-title { font-size: 14px; font-weight: 600; color: var(--text); flex: 1; }
+  .dialog-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    flex: 1;
+  }
 
   .close-btn {
     display: flex;
@@ -175,10 +194,15 @@
     background: transparent;
     color: var(--text-3);
     cursor: pointer;
-    transition: background 0.12s, color 0.12s;
+    transition:
+      background 0.12s,
+      color 0.12s;
   }
 
-  .close-btn:hover { background: var(--glass-inset); color: var(--text); }
+  .close-btn:hover {
+    background: var(--glass-inset);
+    color: var(--text);
+  }
 
   /* ── Body ───────────────────────────────────────────────── */
 
@@ -191,7 +215,11 @@
     gap: 20px;
   }
 
-  section { display: flex; flex-direction: column; gap: 8px; }
+  section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
 
   .setting-group {
     display: flex;
@@ -213,13 +241,35 @@
     transition: background 0.1s;
   }
 
-  .setting-row:hover { background: var(--glass); }
-  .setting-row.field-row { cursor: default; }
-  .setting-row.field-row:hover { background: var(--glass-inset); }
+  .setting-row:hover {
+    background: var(--glass);
+  }
 
-  .setting-info { display: flex; flex-direction: column; gap: 2px; flex: 1; }
-  .setting-name { font-size: 13px; font-weight: 500; color: var(--text); }
-  .setting-desc { font-size: 11px; color: var(--text-3); }
+  .setting-row.field-row {
+    cursor: default;
+  }
+
+  .setting-row.field-row:hover {
+    background: var(--glass-inset);
+  }
+
+  .setting-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+  }
+
+  .setting-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+  }
+
+  .setting-desc {
+    font-size: 11px;
+    color: var(--text-3);
+  }
 
   /* Toggle switch */
   .toggle {
@@ -247,19 +297,33 @@
     box-shadow: var(--shadow-sm);
   }
 
-  .toggle:checked { background: var(--accent); }
-  .toggle:checked::after { transform: translateX(16px); }
+  .toggle:checked {
+    background: var(--accent);
+  }
 
-  .field-input { max-width: 200px; }
+  .toggle:checked::after {
+    transform: translateX(16px);
+  }
+
+  .field-input {
+    max-width: 200px;
+  }
 
   /* ── Footer ─────────────────────────────────────────────── */
 
   .dialog-footer {
     display: flex;
+    align-items: center;
     justify-content: flex-end;
     gap: 8px;
     padding: 12px 16px;
     border-top: 1px solid var(--glass-border);
     flex-shrink: 0;
+  }
+
+  .version-tag {
+    font-size: 11px;
+    color: var(--text-3);
+    flex: 1;
   }
 </style>

@@ -1,4 +1,4 @@
-import { apiPost, ssePost, mediaUrl } from "./client";
+import { apiPost, mediaUrl, ssePost } from "./client";
 
 export interface ListResponse {
   ok: boolean;
@@ -46,9 +46,7 @@ export function getArchiveInfo(params: {
   return apiPost("/archives/info", params);
 }
 
-export function detectEncoding(params: {
-  archive_path: string;
-}): Promise<DetectEncodingResponse> {
+export function detectEncoding(params: { archive_path: string }): Promise<DetectEncodingResponse> {
   return apiPost("/archives/detect-encoding", params);
 }
 
@@ -71,7 +69,7 @@ export function extractArchive(
     names?: string[] | null;
     smart?: boolean;
   },
-  handlers: Record<string, (data: unknown) => void>,
+  handlers: Record<string, (data: unknown) => void>
 ): Promise<void> {
   return ssePost("/archives/extract", params, handlers);
 }
@@ -84,7 +82,7 @@ export function batchExtract(
     filename_encoding?: string | null;
     password_encoding?: string | null;
   },
-  handlers: Record<string, (data: unknown) => void>,
+  handlers: Record<string, (data: unknown) => void>
 ): Promise<void> {
   return ssePost("/archives/batch", params, handlers);
 }

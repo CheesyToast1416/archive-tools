@@ -1,11 +1,10 @@
 <script lang="ts">
-  import { onMount } from "svelte";
   import { Archive, FolderOpen, Trash2 } from "lucide-svelte";
   import { stat } from "@tauri-apps/plugin-fs";
   import { open } from "@tauri-apps/plugin-dialog";
-  import { uiState, addRecent, clearRecents, persistUIState } from "../../stores/uiState";
-  import { pendingArchivePath } from "../../stores/archive";
-  import { NAV_EXTRACT, ARCHIVE_EXTENSIONS, relativeTime } from "../../constants";
+  import { addRecent, clearRecents, persistUIState, uiState } from "$lib/stores/uiState";
+  import { pendingArchivePath } from "$lib/stores/archive";
+  import { ARCHIVE_EXTENSIONS, NAV_EXTRACT, relativeTime } from "$lib/constants";
 
   let mtimes: Record<string, Date | null> = {};
 
@@ -86,7 +85,7 @@
       </div>
     {:else}
       <div class="grid">
-        {#each paths as path}
+        {#each paths as path (path)}
           <button class="card glass-raised" onclick={() => openCard(path)} title={path}>
             <div class="card-icon-wrap">
               <Archive size={24} strokeWidth={1.5} />
@@ -104,7 +103,12 @@
 </div>
 
 <style>
-  .panel { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+  .panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+  }
 
   /* ── Header ──────────────────────────────────────────────── */
 
@@ -117,9 +121,18 @@
     flex-shrink: 0;
   }
 
-  .header-left { display: flex; align-items: center; gap: 10px; }
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
 
-  .panel-title { margin: 0; font-size: 18px; font-weight: 600; color: var(--text); }
+  .panel-title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text);
+  }
 
   .count-badge {
     font-size: 11px;
@@ -130,11 +143,18 @@
     border-radius: 10px;
   }
 
-  .header-actions { display: flex; gap: 8px; }
+  .header-actions {
+    display: flex;
+    gap: 8px;
+  }
 
   /* ── Content area ─────────────────────────────────────────── */
 
-  .content { flex: 1; overflow-y: auto; padding: 20px; }
+  .content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+  }
 
   /* ── Empty state ─────────────────────────────────────────── */
 
@@ -150,7 +170,8 @@
   }
 
   .empty-icon {
-    width: 64px; height: 64px;
+    width: 64px;
+    height: 64px;
     border-radius: 16px;
     background: var(--glass);
     backdrop-filter: var(--glass-blur);
@@ -163,8 +184,18 @@
     margin-bottom: 4px;
   }
 
-  .empty-title { margin: 0; font-size: 15px; font-weight: 600; color: var(--text); }
-  .empty-sub   { margin: 0; font-size: 13px; color: var(--text-3); }
+  .empty-title {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .empty-sub {
+    margin: 0;
+    font-size: 13px;
+    color: var(--text-3);
+  }
 
   /* ── Card grid ───────────────────────────────────────────── */
 
@@ -184,7 +215,10 @@
     border-radius: 14px;
     cursor: pointer;
     text-align: center;
-    transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.15s;
+    transition:
+      transform 0.18s ease,
+      box-shadow 0.18s ease,
+      background 0.15s;
     box-shadow: var(--shadow-sm);
   }
 
@@ -193,11 +227,13 @@
     box-shadow: var(--shadow-lg);
   }
 
-  .card:active { transform: translateY(-1px); }
+  .card:active {
+    transform: translateY(-1px);
+  }
 
   /* Dark mode: make cards more opaque so text/icons are legible against
-     the dark gradient background. The global .glass-raised (0.88) is too
-     transparent here — content bleeds through and reduces readability. */
+       the dark gradient background. The global .glass-raised (0.88) is too
+       transparent here — content bleeds through and reduces readability. */
   :global(.dark) .card {
     background-color: rgba(42, 38, 44, 0.96);
   }
@@ -241,5 +277,9 @@
     max-width: 100%;
   }
 
-  .card-date { font-size: 10px; color: var(--text-3); margin-top: auto; }
+  .card-date {
+    font-size: 10px;
+    color: var(--text-3);
+    margin-top: auto;
+  }
 </style>

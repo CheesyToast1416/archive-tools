@@ -101,11 +101,7 @@ type SSEHandlers = Record<string, (data: unknown) => void>;
  * POST `body` to `path`, read the response as a text/event-stream,
  * and dispatch named events to `handlers[eventName](parsedJSON)`.
  */
-export async function ssePost(
-  path: string,
-  body: unknown,
-  handlers: SSEHandlers,
-): Promise<void> {
+export async function ssePost(path: string, body: unknown, handlers: SSEHandlers): Promise<void> {
   const conn = await getConn();
   const res = await fetch(baseUrl(conn, path), {
     method: "POST",

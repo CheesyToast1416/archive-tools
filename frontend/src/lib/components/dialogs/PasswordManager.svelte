@@ -2,7 +2,10 @@
   import { KeyRound, Plus, ShieldAlert, Trash2, X } from "lucide-svelte";
   import { createEventDispatcher, onMount } from "svelte";
   import {
-    listPasswords, addPassword, deletePassword, getKeyringStatus,
+    addPassword,
+    deletePassword,
+    getKeyringStatus,
+    listPasswords,
     type PasswordEntry,
   } from "../../api/passwords";
 
@@ -29,13 +32,18 @@
     try {
       const entry = await addPassword({ label: newLabel, password: newPassword, hint: newHint });
       entries = [...entries, entry];
-      newLabel = ""; newPassword = ""; newHint = ""; adding = false;
+      newLabel = "";
+      newPassword = "";
+      newHint = "";
+      adding = false;
     } catch (e) {
       error = String(e);
     }
   }
 
-  function requestDelete(id: string) { confirmDeleteId = id; }
+  function requestDelete(id: string) {
+    confirmDeleteId = id;
+  }
 
   async function confirmDelete() {
     if (!confirmDeleteId) return;
@@ -48,9 +56,13 @@
 <div class="overlay">
   <div class="dialog glass-raised">
     <div class="dialog-header">
-      <div class="header-icon"><KeyRound size={16} color="var(--accent)" /></div>
+      <div class="header-icon">
+        <KeyRound size={16} color="var(--accent)" />
+      </div>
       <span class="dialog-title">Saved Passwords</span>
-      <button class="close-btn" onclick={() => dispatch("close")}><X size={14} /></button>
+      <button class="close-btn" onclick={() => dispatch("close")}>
+        <X size={14} />
+      </button>
     </div>
 
     {#if !keyringAvailable}
@@ -68,9 +80,11 @@
         </div>
       {/if}
 
-      {#each entries as entry}
+      {#each entries as entry (entry.id)}
         <div class="entry-row">
-          <div class="entry-icon"><KeyRound size={14} color="var(--accent)" /></div>
+          <div class="entry-icon">
+            <KeyRound size={14} color="var(--accent)" />
+          </div>
           <div class="entry-info">
             <span class="entry-label">{entry.label}</span>
             {#if entry.hint}<span class="entry-hint">{entry.hint}</span>{/if}
@@ -93,10 +107,20 @@
         <div class="add-form">
           <input class="input" bind:value={newLabel} placeholder="Label (e.g. Work archives)" />
           <input class="input" type="password" bind:value={newPassword} placeholder="Password" />
-          <input class="input" bind:value={newHint} placeholder="Hint (optional, stored in plaintext)" />
+          <input
+            class="input"
+            bind:value={newHint}
+            placeholder="Hint (optional, stored in plaintext)"
+          />
           {#if error}<p class="error-text">{error}</p>{/if}
           <div class="add-actions">
-            <button class="btn" onclick={() => { adding = false; error = ""; }}>Cancel</button>
+            <button
+              class="btn"
+              onclick={() => {
+                adding = false;
+                error = "";
+              }}>Cancel</button
+            >
             <button class="btn btn-primary" onclick={doAdd} disabled={!newLabel || !newPassword}>
               <Plus size={13} />
               Add Password
@@ -123,7 +147,7 @@
   .overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.40);
+    background: rgba(0, 0, 0, 0.4);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     display: flex;
@@ -162,7 +186,12 @@
     flex-shrink: 0;
   }
 
-  .dialog-title { font-size: 14px; font-weight: 600; color: var(--text); flex: 1; }
+  .dialog-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    flex: 1;
+  }
 
   .close-btn {
     display: flex;
@@ -175,10 +204,15 @@
     background: transparent;
     color: var(--text-3);
     cursor: pointer;
-    transition: background 0.12s, color 0.12s;
+    transition:
+      background 0.12s,
+      color 0.12s;
   }
 
-  .close-btn:hover { background: var(--glass-inset); color: var(--text); }
+  .close-btn:hover {
+    background: var(--glass-inset);
+    color: var(--text);
+  }
 
   .warn-banner {
     display: flex;
@@ -223,7 +257,9 @@
     transition: background 0.1s;
   }
 
-  .entry-row:hover { background: var(--glass); }
+  .entry-row:hover {
+    background: var(--glass);
+  }
 
   .entry-icon {
     display: flex;
@@ -236,9 +272,24 @@
     flex-shrink: 0;
   }
 
-  .entry-info { flex: 1; overflow: hidden; }
-  .entry-label { font-size: 13px; font-weight: 500; color: var(--text); display: block; }
-  .entry-hint  { font-size: 11px; color: var(--text-3); display: block; margin-top: 1px; }
+  .entry-info {
+    flex: 1;
+    overflow: hidden;
+  }
+
+  .entry-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+    display: block;
+  }
+
+  .entry-hint {
+    font-size: 11px;
+    color: var(--text-3);
+    display: block;
+    margin-top: 1px;
+  }
 
   .icon-btn {
     display: flex;
@@ -251,14 +302,28 @@
     background: transparent;
     color: var(--text-3);
     cursor: pointer;
-    transition: background 0.12s, color 0.12s;
+    transition:
+      background 0.12s,
+      color 0.12s;
     flex-shrink: 0;
   }
 
-  .icon-btn:hover { background: var(--error-subtle); color: var(--error); }
+  .icon-btn:hover {
+    background: var(--error-subtle);
+    color: var(--error);
+  }
 
-  .confirm-row { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
-  .confirm-text { font-size: 12px; color: var(--text-2); }
+  .confirm-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .confirm-text {
+    font-size: 12px;
+    color: var(--text-2);
+  }
 
   .add-form {
     display: flex;
@@ -271,9 +336,17 @@
     margin-top: 4px;
   }
 
-  .add-actions { display: flex; justify-content: flex-end; gap: 8px; }
+  .add-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
 
-  .error-text { font-size: 12px; color: var(--error); margin: 0; }
+  .error-text {
+    font-size: 12px;
+    color: var(--error);
+    margin: 0;
+  }
 
   .dialog-footer {
     display: flex;

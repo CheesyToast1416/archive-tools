@@ -13,6 +13,7 @@
     Plus,
   } from "lucide-svelte";
   import { createEventDispatcher, onDestroy, onMount } from "svelte";
+  import { SvelteSet } from "svelte/reactivity";
   import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
   import { open } from "@tauri-apps/plugin-dialog";
 
@@ -34,7 +35,7 @@
 
   let selected: string | null = null;
   let addedFiles: string[] = [];
-  let removedPaths = new Set<string>();
+  let removedPaths = new SvelteSet<string>();
   let unlisten: (() => void) | null = null;
 
   onMount(async () => {
@@ -44,12 +45,17 @@
 
   onDestroy(() => unlisten?.());
 
+  // eslint-disable-next-line svelte/infinite-reactive-loop
   $: if (editMode) _attachDrop();
-  else { unlisten?.(); unlisten = null; }
+  else {
+    unlisten?.();
+    unlisten = null;
+  }
 
   async function _attachDrop() {
     if (unlisten) return;
     const win = getCurrentWebviewWindow();
+    // eslint-disable-next-line svelte/infinite-reactive-loop
     unlisten = await win.onDragDropEvent((event) => {
       if (event.payload.type === "drop") {
         const paths: string[] = (event.payload as any).paths ?? [];
@@ -72,6 +78,7 @@
 
   function buildTree(paths: string[]): TreeNode[] {
     const root: TreeNode[] = [];
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity
     const dirs = new Map<string, TreeNode>();
 
     function getOrCreateDir(path: string): TreeNode {
@@ -93,7 +100,10 @@
     }
 
     for (const p of paths) {
-      if (p.endsWith("/")) { getOrCreateDir(p); continue; }
+      if (p.endsWith("/")) {
+        getOrCreateDir(p);
+        continue;
+      }
       const sep = p.lastIndexOf("/");
       const label = sep === -1 ? p : p.slice(sep + 1);
       const node: TreeNode = { label, fullPath: p, isDir: false, children: [], expanded: false };
@@ -104,7 +114,12 @@
   }
 
   function selectNode(node: TreeNode) {
-    if (node.isDir) { node.expanded = !node.expanded; tree = tree; return; }
+    if (node.isDir) {
+      node.expanded = !node.expanded;
+      // eslint-disable-next-line svelte/no-reactive-reassign
+      tree = tree;
+      return;
+    }
     selected = node.fullPath;
     dispatch("entrySelected", node.fullPath);
   }
@@ -132,10 +147,13 @@
 
   export function cancelEdits() {
     addedFiles = [];
-    removedPaths = new Set();
+    removedPaths = new SvelteSet();
   }
 
-  interface FlatRow { node: TreeNode; depth: number; }
+  interface FlatRow {
+    node: TreeNode;
+    depth: number;
+  }
 
   function flatten(nodes: TreeNode[], depth = 0): FlatRow[] {
     const out: FlatRow[] = [];
@@ -150,10 +168,27 @@
 
   function fileIcon(label: string) {
     const ext = label.split(".").pop()?.toLowerCase() ?? "";
-    if (["jpg","jpeg","png","gif","bmp","webp","svg","ico"].includes(ext)) return FileImage;
-    if (["mp4","mkv","avi","mov","webm","m4v"].includes(ext)) return FileVideo;
-    if (["mp3","wav","ogg","flac","aac","m4a","opus"].includes(ext)) return FileAudio;
-    if (["txt","md","py","js","ts","json","yaml","toml","xml","html","css","sh","log"].includes(ext)) return FileText;
+    if (["jpg", "jpeg", "png", "gif", "bmp", "webp", "svg", "ico"].includes(ext)) return FileImage;
+    if (["mp4", "mkv", "avi", "mov", "webm", "m4v"].includes(ext)) return FileVideo;
+    if (["mp3", "wav", "ogg", "flac", "aac", "m4a", "opus"].includes(ext)) return FileAudio;
+    if (
+      [
+        "txt",
+        "md",
+        "py",
+        "js",
+        "ts",
+        "json",
+        "yaml",
+        "toml",
+        "xml",
+        "html",
+        "css",
+        "sh",
+        "log",
+      ].includes(ext)
+    )
+      return FileText;
     return File;
   }
 </script>
@@ -172,7 +207,7 @@
 
   <!-- Staged additions in edit mode -->
   {#if editMode}
-    {#each addedFiles as f}
+    {#each addedFiles as f (f)}
       <div class="row added" style="padding-left: 14px">
         <Plus size={12} class="row-icon" />
         <span class="row-label">{f.split(/[\\/]/).pop()}</span>
@@ -180,7 +215,7 @@
     {/each}
   {/if}
 
-  {#each rows as { node, depth }}
+  {#each rows as { node, depth } (node.fullPath)}
     {@const removed = removedPaths.has(node.fullPath)}
     <!-- svelte-ignore a11y-interactive-supports-focus -->
     <div
@@ -203,12 +238,10 @@
             <ChevronRight size={13} />
             <Folder size={13} />
           {/if}
+        {:else if removed}
+          <Minus size={13} />
         {:else}
-          {#if removed}
-            <Minus size={13} />
-          {:else}
-            <svelte:component this={fileIcon(node.label)} size={13} />
-          {/if}
+          <svelte:component this={fileIcon(node.label)} size={13} />
         {/if}
       </span>
       <span class="row-label">{node.label}</span>
@@ -267,7 +300,9 @@
     transition: background 0.12s;
   }
 
-  .add-btn:hover { background: var(--accent-subtle); }
+  .add-btn:hover {
+    background: var(--accent-subtle);
+  }
 
   /* ── Rows ────────────────────────────────────────────────── */
 
@@ -297,15 +332,22 @@
     transition: background 0.12s;
   }
 
-  .row:hover { background: var(--glass-inset); }
-  .row:hover::before { background: var(--glass-border); }
+  .row:hover {
+    background: var(--glass-inset);
+  }
+
+  .row:hover::before {
+    background: var(--glass-border);
+  }
 
   .row.selected {
     background: var(--accent-subtle);
     color: var(--accent);
   }
 
-  .row.selected::before { background: var(--accent); }
+  .row.selected::before {
+    background: var(--accent);
+  }
 
   .row.removed {
     color: var(--error);
@@ -313,8 +355,13 @@
     opacity: 0.7;
   }
 
-  .row.dir { color: var(--text); }
-  .row.added { color: var(--success); }
+  .row.dir {
+    color: var(--text);
+  }
+
+  .row.added {
+    color: var(--success);
+  }
 
   .row-icon {
     display: flex;
@@ -333,5 +380,7 @@
     font-weight: 400;
   }
 
-  .row.dir .row-label { font-weight: 500; }
+  .row.dir .row-label {
+    font-weight: 500;
+  }
 </style>

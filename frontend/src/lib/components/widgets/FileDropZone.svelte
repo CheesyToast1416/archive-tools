@@ -2,7 +2,7 @@
   import { Archive } from "lucide-svelte";
   import { open } from "@tauri-apps/plugin-dialog";
   import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
-  import { ARCHIVE_EXTENSIONS } from "../../constants";
+  import { ARCHIVE_EXTENSIONS } from "$lib/constants";
   import { createEventDispatcher, onDestroy, onMount } from "svelte";
 
   const dispatch = createEventDispatcher<{ path: string }>();
@@ -66,7 +66,10 @@
     background: var(--glass);
     backdrop-filter: var(--glass-blur);
     -webkit-backdrop-filter: var(--glass-blur);
-    transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
+    transition:
+      background 0.2s,
+      border-color 0.2s,
+      box-shadow 0.2s;
     cursor: default;
   }
 
@@ -86,7 +89,9 @@
     background: var(--glass-inset);
     border: 1px solid var(--glass-border);
     color: var(--text-3);
-    transition: background 0.2s, color 0.2s;
+    transition:
+      background 0.2s,
+      color 0.2s;
   }
 
   .icon-wrap.hovering {
@@ -95,6 +100,16 @@
     border-color: rgba(0, 122, 255, 0.25);
   }
 
-  .hint { margin: 0; color: var(--text-2); font-size: 14px; font-weight: 500; }
-  .hint-sub { margin: 0; color: var(--text-3); font-size: 12px; }
+  .hint {
+    margin: 0;
+    color: var(--text-2);
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .hint-sub {
+    margin: 0;
+    color: var(--text-3);
+    font-size: 12px;
+  }
 </style>

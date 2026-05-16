@@ -21,6 +21,20 @@ repos:
     rev: v1.10.0
     hooks:
       - id: mypy
-        # CRITICAL: Mypy needs PySide6 in its isolated environment to check types
-        additional_dependencies: [ "PySide6>=6.6.0" ]
         args: [--config-file=pyproject.toml]
+
+  # Frontend: ESLint + Prettier (run on whole src/ when any frontend file is staged)
+  - repo: local
+    hooks:
+      - id: eslint
+        name: ESLint (frontend)
+        entry: bash -c 'cd frontend && pnpm exec eslint --fix src/'
+        language: system
+        files: ^frontend/src/.*\.(ts|js|svelte)$
+        pass_filenames: false
+      - id: prettier-frontend
+        name: Prettier (frontend)
+        entry: bash -c 'cd frontend && pnpm exec prettier --write src/'
+        language: system
+        files: ^frontend/src/.*\.(ts|js|svelte|css|html)$
+        pass_filenames: false

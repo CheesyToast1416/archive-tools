@@ -1,7 +1,7 @@
 <script lang="ts">
   import { open, save } from "@tauri-apps/plugin-dialog";
   import { ChevronDown, ChevronRight } from "lucide-svelte";
-  import { ARCHIVE_FORMATS, ARCHIVE_EXTENSIONS } from "../../constants";
+  import { ARCHIVE_EXTENSIONS, ARCHIVE_FORMATS } from "../../constants";
   import { convertArchive } from "../../api/archives";
   import { appSettings } from "../../stores/appSettings";
   import PasswordField from "../widgets/PasswordField.svelte";
@@ -18,11 +18,14 @@
   let working = false;
   let log: string[] = [];
 
-  $: selectedFmt = ARCHIVE_FORMATS.find(f => f.key === outputFormat);
+  $: selectedFmt = ARCHIVE_FORMATS.find((f) => f.key === outputFormat);
   $: showOutputPassword = selectedFmt?.supportsPassword ?? false;
 
   async function browseSource() {
-    const path = await open({ filters: [{ name: "Archives", extensions: ARCHIVE_EXTENSIONS }], multiple: false });
+    const path = await open({
+      filters: [{ name: "Archives", extensions: ARCHIVE_EXTENSIONS }],
+      multiple: false,
+    });
     if (typeof path === "string") sourcePath = path;
   }
 
@@ -65,7 +68,7 @@
 
   <div class="section-label">OUTPUT ARCHIVE</div>
   <select class="input" bind:value={outputFormat}>
-    {#each ARCHIVE_FORMATS as fmt}
+    {#each ARCHIVE_FORMATS as fmt (fmt.key)}
       <option value={fmt.key}>{fmt.label}</option>
     {/each}
   </select>
@@ -78,7 +81,11 @@
   {/if}
 
   <button class="btn encoding-toggle" onclick={() => (showEncoding = !showEncoding)}>
-    {#if showEncoding}<ChevronDown size={12} />{:else}<ChevronRight size={12} />{/if}
+    {#if showEncoding}
+      <ChevronDown size={12} />
+    {:else}
+      <ChevronRight size={12} />
+    {/if}
     Encoding
   </button>
   {#if showEncoding}
@@ -104,7 +111,12 @@
     </div>
   {/if}
 
-  <button class="btn btn-primary" style="margin-top: 8px; align-self: flex-end" onclick={doConvert} disabled={working || !sourcePath || !outputPath}>
+  <button
+    class="btn btn-primary"
+    style="margin-top: 8px; align-self: flex-end"
+    onclick={doConvert}
+    disabled={working || !sourcePath || !outputPath}
+  >
     {working ? "Converting…" : "Convert Archive"}
   </button>
 
@@ -124,9 +136,30 @@
     -webkit-backdrop-filter: var(--glass-blur);
   }
 
-  .row { display: flex; gap: 6px; align-items: center; }
-  .encoding-toggle { color: var(--text-2); }
-  .encoding-row { display: flex; gap: 6px; align-items: center; }
-  .encoding-row .input { flex: 1; }
-  .enc-label { font-size: 11px; color: var(--text-3); width: 60px; flex-shrink: 0; }
+  .row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .encoding-toggle {
+    color: var(--text-2);
+  }
+
+  .encoding-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .encoding-row .input {
+    flex: 1;
+  }
+
+  .enc-label {
+    font-size: 11px;
+    color: var(--text-3);
+    width: 60px;
+    flex-shrink: 0;
+  }
 </style>

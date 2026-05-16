@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { Info, Image, LayoutGrid } from "lucide-svelte";
+  import { Image, Info, LayoutGrid } from "lucide-svelte";
   import { convertFileSrc } from "@tauri-apps/api/core";
-  import { formatBytes } from "../../constants";
-  import type { InfoResponse } from "../../api/archives";
+  import { formatBytes } from "$lib/constants";
+  import type { InfoResponse } from "$lib/api/archives";
 
   export let entryPath: string | null = null;
   export let filePath: string | null = null;
@@ -14,23 +14,58 @@
   type Mode = "preview" | "info";
   let mode: Mode = "preview";
 
-  const IMAGE_EXTS = new Set(["jpg","jpeg","png","gif","bmp","webp","ico","tiff","svg"]);
-  const TEXT_EXTS  = new Set(["txt","md","py","js","ts","css","html","xml","json","yaml","yml","toml","ini","cfg","conf","log","sh","bash","diff","patch","rst","csv","c","h","cpp","java","rb","go","zsh","fish","rs","kt","swift","php"]);
-  const PDF_EXTS   = new Set(["pdf"]);
-  const AUDIO_EXTS = new Set(["mp3","wav","ogg","flac","aac","m4a","opus","wma"]);
-  const VIDEO_EXTS = new Set(["mp4","webm","mov","m4v"]);
-  const NO_PREVIEW_EXTS = new Set(["mkv","avi","flv","wmv"]);
+  const IMAGE_EXTS = new Set(["jpg", "jpeg", "png", "gif", "bmp", "webp", "ico", "tiff", "svg"]);
+  const TEXT_EXTS = new Set([
+    "txt",
+    "md",
+    "py",
+    "js",
+    "ts",
+    "css",
+    "html",
+    "xml",
+    "json",
+    "yaml",
+    "yml",
+    "toml",
+    "ini",
+    "cfg",
+    "conf",
+    "log",
+    "sh",
+    "bash",
+    "diff",
+    "patch",
+    "rst",
+    "csv",
+    "c",
+    "h",
+    "cpp",
+    "java",
+    "rb",
+    "go",
+    "zsh",
+    "fish",
+    "rs",
+    "kt",
+    "swift",
+    "php",
+  ]);
+  const PDF_EXTS = new Set(["pdf"]);
+  const AUDIO_EXTS = new Set(["mp3", "wav", "ogg", "flac", "aac", "m4a", "opus", "wma"]);
+  const VIDEO_EXTS = new Set(["mp4", "webm", "mov", "m4v"]);
+  const NO_PREVIEW_EXTS = new Set(["mkv", "avi", "flv", "wmv"]);
 
-  $: ext = entryPath ? entryPath.split(".").pop()?.toLowerCase() ?? "" : "";
+  $: ext = entryPath ? (entryPath.split(".").pop()?.toLowerCase() ?? "") : "";
   $: assetUrl = filePath ? convertFileSrc(filePath) : null;
 
   $: previewKind = (() => {
     if (!ext) return "none";
-    if (IMAGE_EXTS.has(ext))    return "image";
-    if (TEXT_EXTS.has(ext))     return "text";
-    if (PDF_EXTS.has(ext))      return "pdf";
-    if (AUDIO_EXTS.has(ext))    return "audio";
-    if (VIDEO_EXTS.has(ext))    return "video";
+    if (IMAGE_EXTS.has(ext)) return "image";
+    if (TEXT_EXTS.has(ext)) return "text";
+    if (PDF_EXTS.has(ext)) return "pdf";
+    if (AUDIO_EXTS.has(ext)) return "audio";
+    if (VIDEO_EXTS.has(ext)) return "video";
     if (NO_PREVIEW_EXTS.has(ext)) return "unsupported";
     return "none";
   })();
@@ -39,13 +74,19 @@
   $: if (serveUrl && previewKind === "text") {
     fetch(serveUrl)
       .then((r) => r.text())
-      .then((t) => { textContent = t.slice(0, 100_000); })
-      .catch(() => { textContent = "(Could not read file)"; });
+      .then((t) => {
+        // eslint-disable-next-line svelte/infinite-reactive-loop
+        textContent = t.slice(0, 100_000);
+      })
+      .catch(() => {
+        // eslint-disable-next-line svelte/infinite-reactive-loop
+        textContent = "(Could not read file)";
+      });
   } else if (!serveUrl) {
     textContent = "";
   }
 
-  const entryName = (p: string | null) => p ? p.split("/").pop() ?? p : "";
+  const entryName = (p: string | null) => (p ? (p.split("/").pop() ?? p) : "");
 
   // Detect missing H.264+AAC support (the most common MP4 codec pair).
   // Only checks MP4 — WebM may work on Linux while AAC still fails.
@@ -65,19 +106,11 @@
   <div class="pane-header">
     <!-- Pill toggle -->
     <div class="pill-toggle" role="group">
-      <button
-        class="pill-btn"
-        class:active={mode === "preview"}
-        onclick={() => (mode = "preview")}
-      >
+      <button class="pill-btn" class:active={mode === "preview"} onclick={() => (mode = "preview")}>
         <Image size={12} />
         Preview
       </button>
-      <button
-        class="pill-btn"
-        class:active={mode === "info"}
-        onclick={() => (mode = "info")}
-      >
+      <button class="pill-btn" class:active={mode === "info"} onclick={() => (mode = "info")}>
         <Info size={12} />
         Info
       </button>
@@ -92,18 +125,43 @@
       <div class="placeholder">
         <div class="mini-spinner"></div>
       </div>
-
     {:else if mode === "info"}
       {#if archiveInfo}
         <div class="info-grid">
-          <div class="info-row"><span class="info-key">Format</span><span class="info-val">{archiveInfo.format_name}</span></div>
-          <div class="info-row"><span class="info-key">Files</span><span class="info-val">{archiveInfo.file_count < 0 ? "—" : archiveInfo.file_count}</span></div>
-          <div class="info-row"><span class="info-key">Compressed</span><span class="info-val">{formatBytes(archiveInfo.compressed_size)}</span></div>
-          <div class="info-row"><span class="info-key">Original</span><span class="info-val">{formatBytes(archiveInfo.uncompressed_size)}</span></div>
-          <div class="info-row"><span class="info-key">Ratio</span><span class="info-val">{ratioStr}</span></div>
-          <div class="info-row"><span class="info-key">Encrypted</span><span class="info-val">{archiveInfo.is_encrypted ? "Yes" : "No"}</span></div>
+          <div class="info-row">
+            <span class="info-key">Format</span><span class="info-val"
+              >{archiveInfo.format_name}</span
+            >
+          </div>
+          <div class="info-row">
+            <span class="info-key">Files</span><span class="info-val"
+              >{archiveInfo.file_count < 0 ? "—" : archiveInfo.file_count}</span
+            >
+          </div>
+          <div class="info-row">
+            <span class="info-key">Compressed</span><span class="info-val"
+              >{formatBytes(archiveInfo.compressed_size)}</span
+            >
+          </div>
+          <div class="info-row">
+            <span class="info-key">Original</span><span class="info-val"
+              >{formatBytes(archiveInfo.uncompressed_size)}</span
+            >
+          </div>
+          <div class="info-row">
+            <span class="info-key">Ratio</span><span class="info-val">{ratioStr}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-key">Encrypted</span><span class="info-val"
+              >{archiveInfo.is_encrypted ? "Yes" : "No"}</span
+            >
+          </div>
           {#if archiveInfo.comment}
-            <div class="info-row full"><span class="info-key">Comment</span><span class="info-val">{archiveInfo.comment}</span></div>
+            <div class="info-row full">
+              <span class="info-key">Comment</span><span class="info-val"
+                >{archiveInfo.comment}</span
+              >
+            </div>
           {/if}
         </div>
       {:else}
@@ -112,45 +170,35 @@
           <span>Open an archive to see info</span>
         </div>
       {/if}
-
     {:else if !entryPath}
       <div class="placeholder">
         <Image size={28} strokeWidth={1.2} />
         <span>Select a file to preview</span>
       </div>
-
     {:else if !filePath}
       <div class="placeholder">
         <div class="mini-spinner"></div>
         <span>Loading preview…</span>
       </div>
-
     {:else if previewKind === "image"}
       <img src={assetUrl} alt={entryName(entryPath)} class="preview-img" />
-
     {:else if previewKind === "text"}
       <pre class="preview-text">{textContent}</pre>
-
     {:else if previewKind === "pdf"}
       <iframe src={assetUrl} title="PDF preview" class="preview-iframe"></iframe>
-
     {:else if previewKind === "audio"}
-      <!-- svelte-ignore a11y-media-has-caption -->
       <audio controls src={serveUrl ?? undefined} class="preview-audio"></audio>
-
     {:else if previewKind === "video"}
       <!-- svelte-ignore a11y-media-has-caption -->
       <video controls src={serveUrl ?? undefined} class="preview-video"></video>
       {#if !videoAudioSupported}
         <p class="codec-hint">No audio codec — install <code>gst-libav</code></p>
       {/if}
-
     {:else if previewKind === "unsupported"}
       <div class="placeholder">
         <span>Unsupported format</span>
         <span class="placeholder-sub">Extract and open externally</span>
       </div>
-
     {:else}
       <div class="placeholder">
         <Image size={28} strokeWidth={1.2} />
@@ -208,7 +256,10 @@
     font-weight: 500;
     cursor: pointer;
     justify-content: center;
-    transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+    transition:
+      background 0.15s,
+      color 0.15s,
+      box-shadow 0.15s;
   }
 
   .pill-btn.active {
@@ -251,17 +302,25 @@
     padding: 24px;
   }
 
-  .placeholder-sub { font-size: 11px; color: var(--text-3); }
+  .placeholder-sub {
+    font-size: 11px;
+    color: var(--text-3);
+  }
 
   .mini-spinner {
-    width: 20px; height: 20px;
+    width: 20px;
+    height: 20px;
     border: 2px solid var(--glass-border);
     border-top-color: var(--accent);
     border-radius: 50%;
     animation: spin 0.7s linear infinite;
   }
 
-  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
 
   /* ── Media previews ──────────────────────────────────────── */
 
@@ -286,9 +345,20 @@
     align-self: flex-start;
   }
 
-  .preview-iframe { width: 100%; height: 100%; border: none; }
-  .preview-audio  { width: 80%; }
-  .preview-video  { max-width: 100%; max-height: 100%; }
+  .preview-iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+  }
+
+  .preview-audio {
+    width: 80%;
+  }
+
+  .preview-video {
+    max-width: 100%;
+    max-height: 100%;
+  }
 
   .codec-hint {
     position: absolute;
@@ -330,7 +400,9 @@
     transition: background 0.1s;
   }
 
-  .info-row:hover { background: var(--glass-inset); }
+  .info-row:hover {
+    background: var(--glass-inset);
+  }
 
   .info-key {
     font-size: 11px;

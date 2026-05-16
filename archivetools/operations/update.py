@@ -162,8 +162,8 @@ def _update_tar(archive_path: Path, add: list[Path], remove: set[str]) -> bool:
     os.close(tmp_fd)
     tmp_path = Path(tmp_path_str)
     try:
-        with tarfile.open(archive_path, mode_r) as src:
-            with tarfile.open(tmp_path, mode_w) as dst:
+        with tarfile.open(archive_path, mode_r) as src:  # type: ignore[call-overload]
+            with tarfile.open(tmp_path, mode_w) as dst:  # type: ignore[call-overload]
                 for member in src.getmembers():
                     if member.name not in remove:
                         fobj = src.extractfile(member)

@@ -46,9 +46,14 @@
     transition: color 0.12s;
   }
 
-  .toggle:hover { color: var(--text); }
+  .toggle:hover {
+    color: var(--text);
+  }
 
-  .count { color: var(--text-3); font-size: 11px; }
+  .count {
+    color: var(--text-3);
+    font-size: 11px;
+  }
 
   .log-body {
     margin: 0;

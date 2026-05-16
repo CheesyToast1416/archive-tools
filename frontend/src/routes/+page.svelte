@@ -31,14 +31,18 @@
       return;
     }
 
-    listen("sidecar-unavailable", () => { sidecarDown = true; });
+    listen("sidecar-unavailable", () => {
+      sidecarDown = true;
+    });
 
-    checkUpdate().then((update: Update | null) => {
-      if (update?.available) {
-        updateAvailable = update.currentVersion ?? "new version";
-        updateObj = update;
-      }
-    }).catch(() => {});
+    checkUpdate()
+      .then((update: Update | null) => {
+        if (update?.available) {
+          updateAvailable = update.currentVersion ?? "new version";
+          updateObj = update;
+        }
+      })
+      .catch(() => {});
   });
 
   async function installUpdate() {
@@ -146,18 +150,33 @@
     min-width: 260px;
   }
 
-  .splash-card h2 { margin: 0; font-size: 15px; font-weight: 600; color: var(--text); }
-  .splash-card p  { margin: 0; font-size: 12px; color: var(--text-2); max-width: 240px; }
+  .splash-card h2 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .splash-card p {
+    margin: 0;
+    font-size: 12px;
+    color: var(--text-2);
+    max-width: 240px;
+  }
 
   .spinner {
-    width: 24px; height: 24px;
+    width: 24px;
+    height: 24px;
     border: 2px solid var(--glass-border);
     border-top-color: var(--accent);
     border-radius: 50%;
     animation: spin 0.7s linear infinite;
   }
 
-  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
 
   /* ── Notification banners ───────────────────────────────────── */
 
@@ -196,7 +215,10 @@
     padding: 0;
   }
 
-  .btn-link:disabled { opacity: 0.55; cursor: not-allowed; }
+  .btn-link:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
 
   .btn-dismiss {
     margin-left: auto;
@@ -211,5 +233,7 @@
     transition: color 0.12s;
   }
 
-  .btn-dismiss:hover { color: var(--text); }
+  .btn-dismiss:hover {
+    color: var(--text);
+  }
 </style>

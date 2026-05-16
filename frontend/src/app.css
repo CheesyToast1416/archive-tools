@@ -19,53 +19,52 @@
   --bg: linear-gradient(140deg, #bdd4ff 0%, #d2baff 35%, #ffbadb 70%, #baffd6 100%);
 
   /* Glass material — low opacity so the gradient shows through clearly */
-  --glass:         rgba(255, 255, 255, 0.38);
-  --glass-raised:  rgba(255, 255, 255, 0.68);
-  --glass-inset:   rgba(0, 0, 0, 0.06);
+  --glass: rgba(255, 255, 255, 0.38);
+  --glass-raised: rgba(255, 255, 255, 0.68);
+  --glass-inset: rgba(0, 0, 0, 0.06);
   --glass-overlay: rgba(255, 255, 255, 0.92);
   /* White border: visible against the colorful background, reads as glass edge */
-  --glass-border:  rgba(255, 255, 255, 0.55);
+  --glass-border: rgba(255, 255, 255, 0.55);
   /* Specular rim — the top-edge highlight that makes panels read as glass */
   --glass-specular: rgba(255, 255, 255, 0.85);
-  --glass-blur:    blur(40px) saturate(180%);
+  --glass-blur: blur(40px) saturate(180%);
 
   /* Refraction shimmer — diagonal gradient that simulates light bending through
      the glass volume. Light mode: neutral white scatter from top-left. */
-  --glass-shimmer:
-    linear-gradient(
-      135deg,
-      rgba(255, 255, 255, 0.16) 0%,
-      rgba(255, 255, 255, 0.05) 35%,
-      transparent 60%
-    );
+  --glass-shimmer: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.16) 0%,
+    rgba(255, 255, 255, 0.05) 35%,
+    transparent 60%
+  );
 
   /* Edge thickness — inset side glows simulate the glass being physically thick */
   --glass-edge-l: rgba(255, 255, 255, 0.12);
   --glass-edge-r: rgba(0, 0, 0, 0.04);
 
   /* Elevation */
-  --shadow-sm: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
-  --shadow-md: 0 4px 16px rgba(0,0,0,0.08), 0 2px 6px rgba(0,0,0,0.04);
-  --shadow-lg: 0 12px 40px rgba(0,0,0,0.11), 0 4px 12px rgba(0,0,0,0.05);
-  --shadow-xl: 0 24px 64px rgba(0,0,0,0.16), 0 8px 24px rgba(0,0,0,0.07);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.11), 0 4px 12px rgba(0, 0, 0, 0.05);
+  --shadow-xl: 0 24px 64px rgba(0, 0, 0, 0.16), 0 8px 24px rgba(0, 0, 0, 0.07);
 
   /* Accent — Apple blue */
-  --accent:        #007AFF;
+  --accent: #007aff;
   --accent-subtle: rgba(0, 122, 255, 0.11);
-  --accent-glow:   0 0 0 3px rgba(0, 122, 255, 0.25);
+  --accent-glow: 0 0 0 3px rgba(0, 122, 255, 0.25);
 
   /* Text — Apple semantic label colors, light mode */
-  --text:   #1C1C1E;
-  --text-2: rgba(60, 60, 67, 0.70);   /* ≈ 4.5:1 on white — WCAG AA */
-  --text-3: rgba(60, 60, 67, 0.38);   /* decorative / placeholder only */
+  --text: #1c1c1e;
+  --text-2: rgba(60, 60, 67, 0.7); /* ≈ 4.5:1 on white — WCAG AA */
+  --text-3: rgba(60, 60, 67, 0.38); /* decorative / placeholder only */
 
   /* Status — darker tones for text/icon use on light backgrounds */
-  --success:        #1A8F37;           /* 4.6:1 on white */
-  --success-subtle: rgba(26, 143, 55, 0.10);
-  --error:          #D93025;           /* 4.5:1 on white */
-  --error-subtle:   rgba(217, 48, 37, 0.10);
-  --warning:        #B45000;           /* 4.6:1 on white */
-  --warning-subtle: rgba(180, 80, 0, 0.10);
+  --success: #1a8f37; /* 4.6:1 on white */
+  --success-subtle: rgba(26, 143, 55, 0.1);
+  --error: #d93025; /* 4.5:1 on white */
+  --error-subtle: rgba(217, 48, 37, 0.1);
+  --warning: #b45000; /* 4.6:1 on white */
+  --warning-subtle: rgba(180, 80, 0, 0.1);
 }
 
 /* ── Dark mode ──────────────────────────────────────────────────────────────── */
@@ -76,51 +75,50 @@
 
   /* Glass material — neutral dark base, no colour cast of its own.
      The shimmer carries the pink-blue palette instead. */
-  --glass:         rgba(26, 24, 26, 0.70);
-  --glass-raised:  rgba(38, 34, 38, 0.90);
-  --glass-inset:   rgba(255, 255, 255, 0.06);
+  --glass: rgba(26, 24, 26, 0.7);
+  --glass-raised: rgba(38, 34, 38, 0.9);
+  --glass-inset: rgba(255, 255, 255, 0.06);
   --glass-overlay: rgba(20, 18, 20, 0.96);
-  --glass-border:  rgba(255, 255, 255, 0.13);
+  --glass-border: rgba(255, 255, 255, 0.13);
   /* Specular: slightly blue-white — like moonlight or starlight through glass */
   --glass-specular: rgba(210, 220, 255, 0.22);
 
   /* Shimmer mirrors the light-mode pastel palette: sky blue → periwinkle → rose.
      The background stays warm charcoal; the glass panels echo the light side. */
-  --glass-shimmer:
-    linear-gradient(
-      135deg,
-      rgba(189, 210, 255, 0.22) 0%,
-      rgba(210, 186, 255, 0.10) 42%,
-      rgba(255, 186, 219, 0.04) 68%,
-      transparent 88%
-    );
+  --glass-shimmer: linear-gradient(
+    135deg,
+    rgba(189, 210, 255, 0.22) 0%,
+    rgba(210, 186, 255, 0.1) 42%,
+    rgba(255, 186, 219, 0.04) 68%,
+    transparent 88%
+  );
 
   /* Edge: sky-blue light-side, dark shadow-side */
   --glass-edge-l: rgba(189, 210, 255, 0.14);
-  --glass-edge-r: rgba(0, 0, 0, 0.10);
+  --glass-edge-r: rgba(0, 0, 0, 0.1);
 
   /* Elevation — slightly stronger in dark mode for perceived depth */
-  --shadow-sm: 0 1px 4px rgba(0,0,0,0.30), 0 1px 2px rgba(0,0,0,0.20);
-  --shadow-md: 0 4px 20px rgba(0,0,0,0.40), 0 2px 8px rgba(0,0,0,0.24);
-  --shadow-lg: 0 12px 48px rgba(0,0,0,0.50), 0 4px 16px rgba(0,0,0,0.28);
-  --shadow-xl: 0 24px 72px rgba(0,0,0,0.60), 0 8px 28px rgba(0,0,0,0.32);
+  --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.24);
+  --shadow-lg: 0 12px 48px rgba(0, 0, 0, 0.5), 0 4px 16px rgba(0, 0, 0, 0.28);
+  --shadow-xl: 0 24px 72px rgba(0, 0, 0, 0.6), 0 8px 28px rgba(0, 0, 0, 0.32);
 
   /* Accent — Apple dark blue (slightly brighter for dark backgrounds) */
-  --accent:        #0A84FF;
+  --accent: #0a84ff;
   --accent-subtle: rgba(10, 132, 255, 0.18);
-  --accent-glow:   0 0 0 3px rgba(10, 132, 255, 0.30);
+  --accent-glow: 0 0 0 3px rgba(10, 132, 255, 0.3);
 
   /* Text — Apple semantic label colors, dark mode */
-  --text:   #FFFFFF;
-  --text-2: rgba(235, 235, 245, 0.72);  /* ≈ 5:1 on black — WCAG AA */
-  --text-3: rgba(235, 235, 245, 0.38);  /* decorative / placeholder only */
+  --text: #ffffff;
+  --text-2: rgba(235, 235, 245, 0.72); /* ≈ 5:1 on black — WCAG AA */
+  --text-3: rgba(235, 235, 245, 0.38); /* decorative / placeholder only */
 
   /* Status — bright tones for dark backgrounds */
-  --success:        #30D158;            /* Apple green, 12:1 on black */
+  --success: #30d158; /* Apple green, 12:1 on black */
   --success-subtle: rgba(48, 209, 88, 0.12);
-  --error:          #FF453A;            /* Apple red */
-  --error-subtle:   rgba(255, 69, 58, 0.12);
-  --warning:        #FF9F0A;            /* Apple orange */
+  --error: #ff453a; /* Apple red */
+  --error-subtle: rgba(255, 69, 58, 0.12);
+  --warning: #ff9f0a; /* Apple orange */
   --warning-subtle: rgba(255, 159, 10, 0.12);
 }
 
@@ -129,17 +127,17 @@
 
 @media (prefers-reduced-transparency: reduce) {
   :root {
-    --glass:        #dde8fc;
+    --glass: #dde8fc;
     --glass-raised: #edf2ff;
-    --glass-inset:  #d0ddf5;
-    --glass-blur:   none;
+    --glass-inset: #d0ddf5;
+    --glass-blur: none;
     --glass-specular: transparent;
   }
   .dark {
-    --glass:        #1c1a1c;
+    --glass: #1c1a1c;
     --glass-raised: #282428;
-    --glass-inset:  #343034;
-    --glass-blur:   none;
+    --glass-inset: #343034;
+    --glass-blur: none;
     --glass-specular: transparent;
   }
 }
@@ -150,11 +148,11 @@
   :root {
     --glass-border: rgba(0, 0, 0, 0.28);
     --text-2: rgba(28, 28, 30, 0.88);
-    --text-3: rgba(28, 28, 30, 0.60);
+    --text-3: rgba(28, 28, 30, 0.6);
   }
   .dark {
     --glass-border: rgba(255, 255, 255, 0.36);
-    --text-2: rgba(235, 235, 245, 0.90);
+    --text-2: rgba(235, 235, 245, 0.9);
     --text-3: rgba(235, 235, 245, 0.65);
   }
 }
@@ -163,9 +161,14 @@
    BASE RESET
    ───────────────────────────────────────────────────────────────────────────── */
 
-*, *::before, *::after { box-sizing: border-box; }
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
 
-html, body {
+html,
+body {
   height: 100%;
   margin: 0;
   font-family: var(--font-sans);
@@ -182,17 +185,26 @@ html, body {
 
 /* ── Scrollbar ──────────────────────────────────────────────────────────────── */
 
-::-webkit-scrollbar { width: 5px; height: 5px; }
-::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
 ::-webkit-scrollbar-thumb {
   background: rgba(128, 128, 128, 0.22);
   border-radius: 3px;
 }
-::-webkit-scrollbar-thumb:hover { background: rgba(128, 128, 128, 0.42); }
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(128, 128, 128, 0.42);
+}
 
 /* ── Focus — keyboard navigation indicator ──────────────────────────────────── */
 
-:focus { outline: none; }
+:focus {
+  outline: none;
+}
 
 :focus-visible {
   outline: 2px solid var(--accent);
@@ -213,10 +225,10 @@ html, body {
   -webkit-backdrop-filter: var(--glass-blur);
   border: 0.5px solid var(--glass-border);
   box-shadow:
-    inset 0    1.5px 0 var(--glass-specular),   /* top specular rim        */
-    inset 0   -0.5px 0 rgba(0, 0, 0, 0.06),     /* bottom shadow rim       */
-    inset  1px 0    0 var(--glass-edge-l),       /* left edge — light side  */
-    inset -1px 0    0 var(--glass-edge-r);       /* right edge — dark side  */
+    inset 0 1.5px 0 var(--glass-specular),
+    /* top specular rim        */ inset 0 -0.5px 0 rgba(0, 0, 0, 0.06),
+    /* bottom shadow rim       */ inset 1px 0 0 var(--glass-edge-l),
+    /* left edge — light side  */ inset -1px 0 0 var(--glass-edge-r); /* right edge — dark side  */
 }
 
 .glass-raised {
@@ -226,10 +238,10 @@ html, body {
   -webkit-backdrop-filter: var(--glass-blur);
   border: 0.5px solid var(--glass-border);
   box-shadow:
-    inset 0    1.5px 0 var(--glass-specular),
-    inset 0   -0.5px 0 rgba(0, 0, 0, 0.08),
-    inset  1px 0    0 var(--glass-edge-l),
-    inset -1px 0    0 var(--glass-edge-r),
+    inset 0 1.5px 0 var(--glass-specular),
+    inset 0 -0.5px 0 rgba(0, 0, 0, 0.08),
+    inset 1px 0 0 var(--glass-edge-l),
+    inset -1px 0 0 var(--glass-edge-r),
     var(--shadow-md);
 }
 
@@ -254,28 +266,36 @@ html, body {
   font-family: var(--font-sans);
   font-weight: 500;
   cursor: pointer;
-  transition: background-color 0.15s, box-shadow 0.15s, transform 0.1s;
+  transition:
+    background-color 0.15s,
+    box-shadow 0.15s,
+    transform 0.1s;
   white-space: nowrap;
   box-shadow:
-    inset 0    1.5px 0 var(--glass-specular),
-    inset 0   -0.5px 0 rgba(0, 0, 0, 0.06),
-    inset  1px 0    0 var(--glass-edge-l),
-    inset -1px 0    0 var(--glass-edge-r);
+    inset 0 1.5px 0 var(--glass-specular),
+    inset 0 -0.5px 0 rgba(0, 0, 0, 0.06),
+    inset 1px 0 0 var(--glass-edge-l),
+    inset -1px 0 0 var(--glass-edge-r);
 }
 
 .btn:hover:not(:disabled) {
   background-color: var(--glass-raised);
   background-image: var(--glass-shimmer);
   box-shadow:
-    inset 0    1.5px 0 var(--glass-specular),
-    inset 0   -0.5px 0 rgba(0, 0, 0, 0.08),
-    inset  1px 0    0 var(--glass-edge-l),
-    inset -1px 0    0 var(--glass-edge-r),
+    inset 0 1.5px 0 var(--glass-specular),
+    inset 0 -0.5px 0 rgba(0, 0, 0, 0.08),
+    inset 1px 0 0 var(--glass-edge-l),
+    inset -1px 0 0 var(--glass-edge-r),
     var(--shadow-sm);
 }
 
-.btn:active:not(:disabled) { transform: scale(0.97); }
-.btn:disabled { opacity: 0.38; cursor: not-allowed; }
+.btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.btn:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
 
 .btn:focus-visible {
   outline: 2px solid var(--accent);
@@ -290,7 +310,7 @@ html, body {
 }
 
 .btn-primary:hover:not(:disabled) {
-  filter: brightness(1.10);
+  filter: brightness(1.1);
   background: var(--accent);
   box-shadow: var(--shadow-sm);
 }
@@ -322,7 +342,9 @@ html, body {
   font-size: 13px;
   font-family: var(--font-sans);
   outline: none;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
 }
 
 .input:focus {
@@ -336,7 +358,9 @@ html, body {
   outline: none;
 }
 
-.input::placeholder { color: var(--text-3); }
+.input::placeholder {
+  color: var(--text-3);
+}
 
 select.input {
   appearance: none;

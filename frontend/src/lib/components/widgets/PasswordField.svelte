@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Eye, EyeOff, KeyRound } from "lucide-svelte";
-  import { listPasswords, getPasswordSecret, type PasswordEntry } from "../../api/passwords";
+  import { getPasswordSecret, listPasswords, type PasswordEntry } from "$lib/api/passwords";
 
   export let value = "";
   export let placeholder = "Password";
@@ -62,7 +62,7 @@
       {#if passwords.length === 0}
         <div class="picker-empty">No saved passwords</div>
       {:else}
-        {#each passwords as entry}
+        {#each passwords as entry (entry.id)}
           <button class="picker-item" onclick={() => selectPassword(entry)}>
             <span class="picker-label">{entry.label}</span>
             {#if entry.hint}<span class="picker-hint">{entry.hint}</span>{/if}
@@ -74,10 +74,19 @@
 </div>
 
 <style>
-  .field-wrap { position: relative; }
+  .field-wrap {
+    position: relative;
+  }
 
-  .input-row { display: flex; gap: 4px; align-items: center; }
-  .input-row .input { flex: 1; }
+  .input-row {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+  }
+
+  .input-row .input {
+    flex: 1;
+  }
 
   .icon-btn {
     display: flex;
@@ -93,7 +102,9 @@
     -webkit-backdrop-filter: var(--glass-blur);
     color: var(--text-2);
     cursor: pointer;
-    transition: background 0.12s, color 0.12s;
+    transition:
+      background 0.12s,
+      color 0.12s;
   }
 
   .icon-btn:hover {
@@ -129,9 +140,26 @@
     transition: background 0.1s;
   }
 
-  .picker-item:hover { background: var(--accent-subtle); }
+  .picker-item:hover {
+    background: var(--accent-subtle);
+  }
 
-  .picker-label { font-size: 13px; font-weight: 500; color: var(--text); }
-  .picker-hint  { font-size: 11px; color: var(--text-3); margin-top: 1px; }
-  .picker-empty { padding: 12px; font-size: 12px; color: var(--text-3); text-align: center; }
+  .picker-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+  }
+
+  .picker-hint {
+    font-size: 11px;
+    color: var(--text-3);
+    margin-top: 1px;
+  }
+
+  .picker-empty {
+    padding: 12px;
+    font-size: 12px;
+    color: var(--text-3);
+    text-align: center;
+  }
 </style>
