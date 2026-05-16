@@ -7,7 +7,7 @@ on:
     branches: [ main ]
 
 jobs:
-  # ── Frontend: type-check, lint, format ───────────────────────────────────────
+  # ── Frontend: type-check, lint, format, test ─────────────────────────────────
   frontend:
     runs-on: ubuntu-latest
     defaults:
@@ -41,9 +41,12 @@ jobs:
       - name: Test
         run: pnpm test:run
 
-  # ── Python: ruff + mypy ───────────────────────────────────────────────────────
+  # ── Backend: ruff + mypy ──────────────────────────────────────────────────────
   python-lint:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
     steps:
       - uses: actions/checkout@v6
 
@@ -60,9 +63,12 @@ jobs:
       - name: Mypy
         run: mypy archivetools/
 
-  # ── Python: tests ─────────────────────────────────────────────────────────────
+  # ── Backend: tests ────────────────────────────────────────────────────────────
   test:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
     steps:
       - uses: actions/checkout@v6
 

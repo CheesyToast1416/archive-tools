@@ -9,23 +9,23 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-cd "$ROOT"
 
 echo "▶ Detecting platform triple…"
 TRIPLE="$(rustc --print host-triple)"
 echo "  triple = $TRIPLE"
 
 echo "▶ Building server binary with PyInstaller…"
+cd "$ROOT/backend"
 pyinstaller server.spec
 
 SRC="dist/archivetools-server"
 [ "$TRIPLE" = *windows* ] && SRC="dist/archivetools-server.exe" || true
 
-DST="frontend/src-tauri/binaries/archivetools-server-${TRIPLE}"
+DST="${ROOT}/frontend/src-tauri/binaries/archivetools-server-${TRIPLE}"
 [ "$TRIPLE" = *windows* ] && DST="${DST}.exe" || true
 
 echo "▶ Copying to ${DST}…"
-mkdir -p frontend/src-tauri/binaries
+mkdir -p "${ROOT}/frontend/src-tauri/binaries"
 cp "$SRC" "$DST"
 chmod +x "$DST" 2>/dev/null || true
 

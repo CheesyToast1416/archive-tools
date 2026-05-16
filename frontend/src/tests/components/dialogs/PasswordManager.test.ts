@@ -25,6 +25,9 @@ const mockList = vi.mocked(listPasswords);
 const mockDelete = vi.mocked(deletePassword);
 const mockKeyring = vi.mocked(getKeyringStatus);
 
+// PasswordManager uses $props() for the close callback (Svelte 5 runes mode)
+const withClose = (handler = vi.fn()) => ({ props: { close: handler } });
+
 beforeEach(() => {
   vi.clearAllMocks();
   mockList.mockResolvedValue(ENTRIES);
@@ -33,53 +36,45 @@ beforeEach(() => {
 
 describe("PasswordManager", () => {
   it("loads and renders password entries on mount", async () => {
-    const { findByText } = render(PasswordManager, {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ...({ events: { close: vi.fn() } } as any),
-      events: { close: vi.fn() },
-    });
+    const { findByText } = render(PasswordManager, withClose());
     expect(await findByText("GitHub")).toBeInTheDocument();
     expect(await findByText("work account")).toBeInTheDocument();
     expect(await findByText("MyServer")).toBeInTheDocument();
   });
 
   it("calls listPasswords and getKeyringStatus on mount", async () => {
-    render(PasswordManager, { events: { close: vi.fn() } } as never);
+    render(PasswordManager, withClose());
     await waitFor(() => expect(mockList).toHaveBeenCalled());
     expect(mockKeyring).toHaveBeenCalled();
   });
 
   it("shows keyring unavailable warning when keyring not available", async () => {
     mockKeyring.mockResolvedValue({ keyring_available: false });
-    const { findByText } = render(PasswordManager, { events: { close: vi.fn() } } as never);
+    const { findByText } = render(PasswordManager, withClose());
     expect(await findByText(/OS keyring unavailable/)).toBeInTheDocument();
   });
 
   it("does not show keyring warning when keyring is available", async () => {
-    const { queryByText } = render(PasswordManager, { events: { close: vi.fn() } } as never);
+    const { queryByText } = render(PasswordManager, withClose());
     await waitFor(() => expect(mockKeyring).toHaveBeenCalled());
     expect(queryByText(/OS keyring unavailable/)).toBeNull();
   });
 
   it("shows empty state when no passwords", async () => {
     mockList.mockResolvedValue([]);
-    const { findByText } = render(PasswordManager, { events: { close: vi.fn() } } as never);
+    const { findByText } = render(PasswordManager, withClose());
     expect(await findByText("No saved passwords")).toBeInTheDocument();
   });
 
   it("shows confirm UI after delete button clicked", async () => {
-    const { findAllByTitle, findByText } = render(PasswordManager, {
-      events: { close: vi.fn() },
-    } as never);
+    const { findAllByTitle, findByText } = render(PasswordManager, withClose());
     const deleteBtns = await findAllByTitle("Delete");
     await fireEvent.click(deleteBtns[0]);
     expect(await findByText("Delete?")).toBeInTheDocument();
   });
 
   it("confirms delete and removes entry", async () => {
-    const { findAllByTitle, findByText, queryByText } = render(PasswordManager, {
-      events: { close: vi.fn() },
-    } as never);
+    const { findAllByTitle, findByText, queryByText } = render(PasswordManager, withClose());
     const deleteBtns = await findAllByTitle("Delete");
     await fireEvent.click(deleteBtns[0]);
     await fireEvent.click(await findByText("Yes"));
@@ -88,9 +83,7 @@ describe("PasswordManager", () => {
   });
 
   it("cancels delete when No is clicked", async () => {
-    const { findAllByTitle, findByText, queryByText } = render(PasswordManager, {
-      events: { close: vi.fn() },
-    } as never);
+    const { findAllByTitle, findByText, queryByText } = render(PasswordManager, withClose());
     const deleteBtns = await findAllByTitle("Delete");
     await fireEvent.click(deleteBtns[0]);
     await fireEvent.click(await findByText("No"));
@@ -98,11 +91,9 @@ describe("PasswordManager", () => {
     expect(queryByText("Delete?")).toBeNull();
   });
 
-  it("dispatches close event when X button clicked", async () => {
+  it("calls close callback when X button clicked", async () => {
     const closeHandler = vi.fn();
-    const { container } = render(PasswordManager, {
-      events: { close: closeHandler },
-    } as never);
+    const { container } = render(PasswordManager, withClose(closeHandler));
     await waitFor(() => expect(mockList).toHaveBeenCalled());
     await fireEvent.click(container.querySelector(".close-btn")!);
     expect(closeHandler).toHaveBeenCalled();

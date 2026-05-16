@@ -35,7 +35,7 @@ beforeEach(() => vi.clearAllMocks());
 
 describe("SettingsDialog", () => {
   it("renders all setting sections", () => {
-    const { getByText } = render(SettingsDialog, { events: { close: vi.fn() } } as never);
+    const { getByText } = render(SettingsDialog, { props: { close: vi.fn() } });
     expect(getByText("Extraction")).toBeInTheDocument();
     expect(getByText("Archive Creation")).toBeInTheDocument();
     expect(getByText("Encoding Defaults")).toBeInTheDocument();
@@ -43,19 +43,19 @@ describe("SettingsDialog", () => {
   });
 
   it("shows version in footer", async () => {
-    const { findByText } = render(SettingsDialog, { events: { close: vi.fn() } } as never);
+    const { findByText } = render(SettingsDialog, { props: { close: vi.fn() } });
     expect(await findByText("v0.2.0")).toBeInTheDocument();
   });
 
   it("renders toggles for boolean settings", () => {
-    const { getByText } = render(SettingsDialog, { events: { close: vi.fn() } } as never);
+    const { getByText } = render(SettingsDialog, { props: { close: vi.fn() } });
     expect(getByText("Smart extraction")).toBeInTheDocument();
     expect(getByText("Desktop notifications")).toBeInTheDocument();
   });
 
   it("Save Changes calls persistAppSettings and dispatches close", async () => {
     const closeHandler = vi.fn();
-    const { getByText } = render(SettingsDialog, { events: { close: closeHandler } } as never);
+    const { getByText } = render(SettingsDialog, { props: { close: closeHandler } });
     await fireEvent.click(getByText("Save Changes"));
     expect(mockPersist).toHaveBeenCalled();
     await vi.waitFor(() => expect(closeHandler).toHaveBeenCalled());
@@ -63,7 +63,7 @@ describe("SettingsDialog", () => {
 
   it("Cancel dispatches close without saving", async () => {
     const closeHandler = vi.fn();
-    const { getByText } = render(SettingsDialog, { events: { close: closeHandler } } as never);
+    const { getByText } = render(SettingsDialog, { props: { close: closeHandler } });
     await fireEvent.click(getByText("Cancel"));
     expect(mockPersist).not.toHaveBeenCalled();
     expect(closeHandler).toHaveBeenCalled();
@@ -71,7 +71,7 @@ describe("SettingsDialog", () => {
 
   it("X button in header dispatches close", async () => {
     const closeHandler = vi.fn();
-    const { container } = render(SettingsDialog, { events: { close: closeHandler } } as never);
+    const { container } = render(SettingsDialog, { props: { close: closeHandler } });
     await fireEvent.click(container.querySelector(".close-btn")!);
     expect(closeHandler).toHaveBeenCalled();
   });

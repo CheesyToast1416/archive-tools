@@ -8,20 +8,27 @@ repos:
       - id: check-yaml
       - id: check-toml
 
-  # Ruff linter and formatter
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.4.4 # Match this roughly with your pyproject.toml version
+  # Backend: Ruff linter + formatter (run from backend/ so per-file-ignores resolve correctly)
+  - repo: local
     hooks:
-      - id: ruff
-        args: [ --fix ]
-      - id: ruff-format
-
-  # Mypy type checking
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.10.0
-    hooks:
-      - id: mypy
-        args: [--config-file=pyproject.toml]
+      - id: ruff-backend
+        name: Ruff (backend)
+        entry: bash -c 'cd backend && ruff check --fix archivetools/ server/ tests/'
+        language: system
+        files: ^backend/.*\.py$
+        pass_filenames: false
+      - id: ruff-format-backend
+        name: Ruff format (backend)
+        entry: bash -c 'cd backend && ruff format archivetools/ server/ tests/'
+        language: system
+        files: ^backend/.*\.py$
+        pass_filenames: false
+      - id: mypy-backend
+        name: Mypy (backend)
+        entry: bash -c 'cd backend && mypy archivetools/'
+        language: system
+        files: ^backend/archivetools/.*\.py$
+        pass_filenames: false
 
   # Frontend: ESLint + Prettier (run on whole src/ when any frontend file is staged)
   - repo: local
