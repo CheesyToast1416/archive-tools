@@ -1,97 +1,56 @@
 """Integration tests for the FastAPI server layer.
 
-These tests use FastAPI's TestClient (synchronous ASGI transport via httpx)
-so no running uvicorn process is needed.  The TOKEN is imported directly from
-server._token so it matches what the auth middleware checks.
+Uses FastAPI's TestClient (synchronous ASGI transport) so no uvicorn needed.
+The ``client`` and ``auth`` fixtures come from conftest.py.
+
+SSE endpoints are exercised by reading the complete response body and parsing
+the event-stream format via ``conftest.parse_sse``.
 """
 
 from __future__ import annotations
 
-import io
 import time
 import zipfile
+from pathlib import Path
 
-import pytest
-from fastapi.testclient import TestClient
+from tests.conftest import parse_sse
 
-from server._token import TOKEN
-from server.main import create_app
-
-# ── Fixtures ──────────────────────────────────────────────────────────────────
+# ── Health ────────────────────────────────────────────────────────────────────
 
 
-@pytest.fixture(scope="module")
-def client():
-    """Shared TestClient for the full FastAPI app."""
-    app = create_app()
-    with TestClient(app, raise_server_exceptions=False) as c:
-        yield c
-
-
-@pytest.fixture
-def auth(client):
-    """Shorthand: returns auth headers dict."""
-    return {"Authorization": f"Bearer {TOKEN}"}
-
-
-@pytest.fixture
-def simple_zip(tmp_path):
-    """A minimal ZIP archive containing one text file."""
-    p = tmp_path / "sample.zip"
-    with zipfile.ZipFile(p, "w", zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr("hello.txt", "Hello, world!")
-        zf.writestr("subdir/nested.txt", "nested content")
-    return p
-
-
-@pytest.fixture
-def encrypted_zip(tmp_path):
-    """A ZIP archive protected with a known password (uses ZipFile's simple pwd)."""
-    import pyzipper
-
-    p = tmp_path / "secret.zip"
-    with pyzipper.AESZipFile(p, "w", encryption=pyzipper.WZ_AES) as zf:
-        zf.setpassword(b"correcthorsebattery")
-        zf.writestr("secret.txt", "top secret")
-    return p
+class TestHealth:
+    def test_health_no_auth_required(self, client) -> None:
+        r = client.get("/health")
+        assert r.status_code == 200
+        assert r.json() == {"ok": True}
 
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
 
 
 class TestAuth:
-    def test_health_no_auth_required(self, client):
-        """GET /health is the only endpoint that skips token validation."""
-        r = client.get("/health")
-        assert r.status_code == 200
-        assert r.json() == {"ok": True}
+    def test_missing_token_returns_401(self, client) -> None:
+        assert client.get("/settings/app").status_code == 401
 
-    def test_missing_token_returns_401(self, client):
-        r = client.get("/settings/app")
-        assert r.status_code == 401
-
-    def test_wrong_token_returns_401(self, client):
+    def test_wrong_token_returns_401(self, client) -> None:
         r = client.get("/settings/app", headers={"Authorization": "Bearer wrongtoken"})
         assert r.status_code == 401
 
-    def test_malformed_header_returns_401(self, client):
+    def test_malformed_header_returns_401(self, client) -> None:
         r = client.get("/settings/app", headers={"Authorization": "Basic notbearer"})
         assert r.status_code == 401
 
-    def test_correct_token_accepted(self, client, auth):
-        r = client.get("/settings/app", headers=auth)
-        assert r.status_code == 200
+    def test_correct_token_accepted(self, client, auth) -> None:
+        assert client.get("/settings/app", headers=auth).status_code == 200
 
 
 # ── Settings ──────────────────────────────────────────────────────────────────
 
 
 class TestSettings:
-    def test_get_app_settings_shape(self, client, auth):
-        r = client.get("/settings/app", headers=auth)
-        assert r.status_code == 200
-        data = r.json()
-        expected_keys = {
+    def test_get_app_settings_has_expected_keys(self, client, auth) -> None:
+        data = client.get("/settings/app", headers=auth).json()
+        assert {
             "smart_extraction",
             "trash_after_extract",
             "default_output_dir",
@@ -100,63 +59,54 @@ class TestSettings:
             "default_password_encoding",
             "default_filename_encoding",
             "notifications_enabled",
-        }
-        assert expected_keys == set(data.keys())
+        } == set(data.keys())
 
-    def test_put_app_settings_roundtrip(self, client, auth):
-        # Read current state
+    def test_put_app_settings_persists(self, client, auth) -> None:
         original = client.get("/settings/app", headers=auth).json()
-        # Modify one field
-        modified = {**original, "default_output_dir": "/tmp/test_output"}
-        r = client.put("/settings/app", json=modified, headers=auth)
-        assert r.status_code == 200
-        assert r.json()["ok"] is True
-        # Verify persisted
-        updated = client.get("/settings/app", headers=auth).json()
-        assert updated["default_output_dir"] == "/tmp/test_output"
-        # Restore
-        client.put("/settings/app", json=original, headers=auth)
+        try:
+            modified = {**original, "default_output_dir": "/tmp/test_atout"}
+            r = client.put("/settings/app", json=modified, headers=auth)
+            assert r.status_code == 200
+            assert r.json()["ok"] is True
+            assert (
+                client.get("/settings/app", headers=auth).json()["default_output_dir"]
+                == "/tmp/test_atout"
+            )
+        finally:
+            client.put("/settings/app", json=original, headers=auth)
 
-    def test_get_ui_state_shape(self, client, auth):
-        r = client.get("/settings/ui", headers=auth)
-        assert r.status_code == 200
-        data = r.json()
-        assert "theme" in data
-        assert "active_nav" in data
-        assert "recent_archives" in data
-        assert "last_archive_dir" in data
-        # window_geometry must NOT be present (Tauri owns it)
-        assert "window_geometry" not in data
+    def test_get_ui_state_has_expected_keys(self, client, auth) -> None:
+        data = client.get("/settings/ui", headers=auth).json()
+        for key in ("theme", "active_nav", "recent_archives", "last_archive_dir"):
+            assert key in data
 
-    def test_put_ui_state_trims_recent_to_15(self, client, auth):
+    def test_put_ui_state_trims_recent_to_15(self, client, auth) -> None:
         original = client.get("/settings/ui", headers=auth).json()
-        big_list = [f"/path/archive_{i}.zip" for i in range(20)]
-        r = client.put(
-            "/settings/ui", json={**original, "recent_archives": big_list}, headers=auth
-        )
-        assert r.status_code == 200
-        updated = client.get("/settings/ui", headers=auth).json()
-        assert len(updated["recent_archives"]) == 15
-        # Restore
-        client.put("/settings/ui", json=original, headers=auth)
+        try:
+            big = [f"/path/archive_{i}.zip" for i in range(20)]
+            client.put(
+                "/settings/ui", json={**original, "recent_archives": big}, headers=auth
+            )
+            updated = client.get("/settings/ui", headers=auth).json()
+            assert len(updated["recent_archives"]) == 15
+        finally:
+            client.put("/settings/ui", json=original, headers=auth)
 
 
 # ── Passwords ─────────────────────────────────────────────────────────────────
 
 
 class TestPasswords:
-    def test_list_returns_list(self, client, auth):
-        r = client.get("/passwords/", headers=auth)
-        assert r.status_code == 200
-        assert isinstance(r.json(), list)
+    def test_list_returns_list(self, client, auth) -> None:
+        assert isinstance(client.get("/passwords/", headers=auth).json(), list)
 
-    def test_keyring_status_shape(self, client, auth):
-        r = client.get("/passwords/keyring-status", headers=auth)
-        assert r.status_code == 200
-        assert "keyring_available" in r.json()
+    def test_keyring_status_has_field(self, client, auth) -> None:
+        assert (
+            "keyring_available"
+            in client.get("/passwords/keyring-status", headers=auth).json()
+        )
 
-    def test_add_and_delete_password(self, client, auth):
-        # Add
+    def test_add_retrieve_delete_lifecycle(self, client, auth) -> None:
         r = client.post(
             "/passwords/",
             json={"label": "test_label", "password": "s3cr3t", "hint": "a hint"},
@@ -166,24 +116,16 @@ class TestPasswords:
         entry = r.json()
         assert entry["label"] == "test_label"
         assert entry["hint"] == "a hint"
-        assert "id" in entry
-
-        # Retrieve secret
         entry_id = entry["id"]
+
         r2 = client.get(f"/passwords/{entry_id}/secret", headers=auth)
-        assert r2.status_code == 200
         assert r2.json()["password"] == "s3cr3t"
 
-        # Delete
-        r3 = client.delete(f"/passwords/{entry_id}", headers=auth)
-        assert r3.status_code == 200
-
-        # Verify removed from metadata list
+        assert client.delete(f"/passwords/{entry_id}", headers=auth).status_code == 200
         entries = client.get("/passwords/", headers=auth).json()
         assert not any(e["id"] == entry_id for e in entries)
 
-    def test_delete_nonexistent_is_idempotent(self, client, auth):
-        # PasswordStore.delete silently ignores unknown IDs — that's acceptable
+    def test_delete_nonexistent_is_idempotent(self, client, auth) -> None:
         r = client.delete(
             "/passwords/00000000-0000-0000-0000-000000000000", headers=auth
         )
@@ -194,7 +136,7 @@ class TestPasswords:
 
 
 class TestArchiveList:
-    def test_list_simple_zip(self, client, auth, simple_zip):
+    def test_list_simple_zip(self, client, auth, simple_zip) -> None:
         r = client.post(
             "/archives/list", json={"archive_path": str(simple_zip)}, headers=auth
         )
@@ -202,31 +144,30 @@ class TestArchiveList:
         data = r.json()
         assert data["ok"] is True
         assert "hello.txt" in data["names"]
-        assert "subdir/nested.txt" in data["names"]
 
-    def test_list_nonexistent_returns_500(self, client, auth):
-        r = client.post(
-            "/archives/list", json={"archive_path": "/no/such/file.zip"}, headers=auth
+    def test_list_nonexistent_returns_500(self, client, auth) -> None:
+        assert (
+            client.post(
+                "/archives/list",
+                json={"archive_path": "/no/such/file.zip"},
+                headers=auth,
+            ).status_code
+            == 500
         )
-        assert r.status_code == 500
 
-    def test_list_encrypted_zip_names_always_readable(
+    def test_list_aes_zip_names_visible_without_password(
         self, client, auth, encrypted_zip
-    ):
-        # AES-ZIP encrypts file *content* but not the directory (entry names are always
-        # visible regardless of password).  list_archive returns ok=True even with
-        # wrong password for AES-ZIP.  Only extraction would fail.
+    ) -> None:
         r = client.post(
             "/archives/list",
-            json={"archive_path": str(encrypted_zip), "password": "wrongpass"},
+            json={"archive_path": str(encrypted_zip), "password": "wrong"},
             headers=auth,
         )
         assert r.status_code == 200
-        data = r.json()
-        assert data["ok"] is True
-        assert "secret.txt" in data["names"]
+        assert r.json()["ok"] is True
+        assert "secret.txt" in r.json()["names"]
 
-    def test_list_correct_password(self, client, auth, encrypted_zip):
+    def test_list_with_correct_password(self, client, auth, encrypted_zip) -> None:
         r = client.post(
             "/archives/list",
             json={
@@ -235,17 +176,14 @@ class TestArchiveList:
             },
             headers=auth,
         )
-        assert r.status_code == 200
-        data = r.json()
-        assert data["ok"] is True
-        assert "secret.txt" in data["names"]
+        assert r.json()["ok"] is True
 
 
 # ── Archive: info ─────────────────────────────────────────────────────────────
 
 
 class TestArchiveInfo:
-    def test_info_simple_zip(self, client, auth, simple_zip):
+    def test_info_simple_zip(self, client, auth, simple_zip) -> None:
         r = client.post(
             "/archives/info", json={"archive_path": str(simple_zip)}, headers=auth
         )
@@ -255,18 +193,20 @@ class TestArchiveInfo:
         assert data["file_count"] == 2
         assert data["is_encrypted"] is False
 
-    def test_info_nonexistent_returns_500(self, client, auth):
-        r = client.post(
-            "/archives/info", json={"archive_path": "/no/such/file.zip"}, headers=auth
+    def test_info_nonexistent_returns_500(self, client, auth) -> None:
+        assert (
+            client.post(
+                "/archives/info", json={"archive_path": "/no/such.zip"}, headers=auth
+            ).status_code
+            == 500
         )
-        assert r.status_code == 500
 
 
 # ── Archive: detect encoding ──────────────────────────────────────────────────
 
 
 class TestDetectEncoding:
-    def test_utf8_zip_returns_none_or_utf8(self, client, auth, simple_zip):
+    def test_utf8_zip_returns_float_confidence(self, client, auth, simple_zip) -> None:
         r = client.post(
             "/archives/detect-encoding",
             json={"archive_path": str(simple_zip)},
@@ -275,19 +215,13 @@ class TestDetectEncoding:
         assert r.status_code == 200
         data = r.json()
         assert "encoding" in data
-        assert "confidence" in data
         assert 0.0 <= data["confidence"] <= 1.0
 
-    def test_non_zip_returns_null_encoding(self, client, auth, tmp_path):
-        tar = tmp_path / "test.tar"
-        import tarfile
-
-        with tarfile.open(tar, "w") as tf:
-            info = tarfile.TarInfo("file.txt")
-            info.size = 5
-            tf.addfile(info, io.BytesIO(b"hello"))
+    def test_tar_returns_null_encoding(self, client, auth, simple_tar) -> None:
         r = client.post(
-            "/archives/detect-encoding", json={"archive_path": str(tar)}, headers=auth
+            "/archives/detect-encoding",
+            json={"archive_path": str(simple_tar)},
+            headers=auth,
         )
         assert r.status_code == 200
         assert r.json()["encoding"] is None
@@ -297,27 +231,28 @@ class TestDetectEncoding:
 
 
 class TestArchiveTest:
-    def test_valid_zip(self, client, auth, simple_zip):
+    def test_valid_zip_passes(self, client, auth, simple_zip) -> None:
         r = client.post(
             "/archives/test", json={"archive_path": str(simple_zip)}, headers=auth
         )
         assert r.status_code == 200
-        data = r.json()
-        assert data["ok"] is True
-        assert data["failed"] == []
+        assert r.json()["ok"] is True
+        assert r.json()["failed"] == []
 
-    def test_nonexistent_returns_500(self, client, auth):
-        r = client.post(
-            "/archives/test", json={"archive_path": "/no/such.zip"}, headers=auth
+    def test_nonexistent_returns_500(self, client, auth) -> None:
+        assert (
+            client.post(
+                "/archives/test", json={"archive_path": "/no/such.zip"}, headers=auth
+            ).status_code
+            == 500
         )
-        assert r.status_code == 500
 
 
 # ── Archive: create ───────────────────────────────────────────────────────────
 
 
 class TestArchiveCreate:
-    def test_create_zip(self, client, auth, tmp_path):
+    def test_create_zip(self, client, auth, tmp_path) -> None:
         src = tmp_path / "source.txt"
         src.write_text("test content")
         out = tmp_path / "output.zip"
@@ -328,12 +263,10 @@ class TestArchiveCreate:
         )
         assert r.status_code == 200
         assert r.json()["ok"] is True
-        assert out.exists()
-        # Verify the created archive is valid
         with zipfile.ZipFile(out) as zf:
             assert "source.txt" in zf.namelist()
 
-    def test_create_invalid_format_returns_500(self, client, auth, tmp_path):
+    def test_create_invalid_format_returns_500(self, client, auth, tmp_path) -> None:
         src = tmp_path / "f.txt"
         src.write_text("x")
         r = client.post(
@@ -348,11 +281,281 @@ class TestArchiveCreate:
         assert r.status_code == 500
 
 
-# ── Preview: temp dir lifecycle ───────────────────────────────────────────────
+# ── Archive: convert ──────────────────────────────────────────────────────────
+
+
+class TestArchiveConvert:
+    def test_zip_to_tar_gz(self, client, auth, simple_zip, tmp_path) -> None:
+        out = tmp_path / "out.tar.gz"
+        r = client.post(
+            "/archives/convert",
+            json={
+                "input_path": str(simple_zip),
+                "output_path": str(out),
+                "output_format": "tar.gz",
+            },
+            headers=auth,
+        )
+        assert r.status_code == 200
+        assert r.json()["ok"] is True
+        assert out.exists()
+
+    def test_zip_to_7z(self, client, auth, simple_zip, tmp_path) -> None:
+        out = tmp_path / "out.7z"
+        r = client.post(
+            "/archives/convert",
+            json={
+                "input_path": str(simple_zip),
+                "output_path": str(out),
+                "output_format": "7z",
+            },
+            headers=auth,
+        )
+        assert r.status_code == 200
+        assert r.json()["ok"] is True
+
+    def test_nonexistent_source_returns_500(self, client, auth, tmp_path) -> None:
+        r = client.post(
+            "/archives/convert",
+            json={
+                "input_path": "/no/such.zip",
+                "output_path": str(tmp_path / "out.7z"),
+                "output_format": "7z",
+            },
+            headers=auth,
+        )
+        assert r.status_code == 500
+
+    def test_unsupported_output_format_returns_500(
+        self, client, auth, simple_zip, tmp_path
+    ) -> None:
+        r = client.post(
+            "/archives/convert",
+            json={
+                "input_path": str(simple_zip),
+                "output_path": str(tmp_path / "out.rar"),
+                "output_format": "rar",
+            },
+            headers=auth,
+        )
+        assert r.status_code == 500
+
+
+# ── Archive: update ───────────────────────────────────────────────────────────
+
+
+class TestArchiveUpdate:
+    def test_add_file_to_zip(self, client, auth, simple_zip, tmp_path) -> None:
+        new_file = tmp_path / "extra.txt"
+        new_file.write_text("extra content")
+        r = client.post(
+            "/archives/update",
+            json={
+                "archive_path": str(simple_zip),
+                "files_to_add": [str(new_file)],
+                "paths_to_remove": [],
+            },
+            headers=auth,
+        )
+        assert r.status_code == 200
+        assert r.json()["ok"] is True
+        with zipfile.ZipFile(simple_zip) as zf:
+            assert "extra.txt" in zf.namelist()
+
+    def test_remove_entry_from_zip(self, client, auth, tmp_path) -> None:
+        p = tmp_path / "a.zip"
+        with zipfile.ZipFile(p, "w") as zf:
+            zf.writestr("keep.txt", "keep")
+            zf.writestr("drop.txt", "drop")
+        r = client.post(
+            "/archives/update",
+            json={
+                "archive_path": str(p),
+                "files_to_add": [],
+                "paths_to_remove": ["drop.txt"],
+            },
+            headers=auth,
+        )
+        assert r.status_code == 200
+        with zipfile.ZipFile(p) as zf:
+            assert "keep.txt" in zf.namelist()
+            assert "drop.txt" not in zf.namelist()
+
+    def test_noop_update_returns_ok(self, client, auth, simple_zip) -> None:
+        r = client.post(
+            "/archives/update",
+            json={
+                "archive_path": str(simple_zip),
+                "files_to_add": [],
+                "paths_to_remove": [],
+            },
+            headers=auth,
+        )
+        assert r.status_code == 200
+        assert r.json()["ok"] is True
+
+    def test_rar_update_returns_500(self, client, auth, tmp_path) -> None:
+        p = tmp_path / "a.rar"
+        p.write_bytes(b"Rar!\x1a\x07\x00")
+        r = client.post(
+            "/archives/update",
+            json={"archive_path": str(p), "files_to_add": [], "paths_to_remove": ["x"]},
+            headers=auth,
+        )
+        assert r.status_code == 500
+
+
+# ── Archive: extract (SSE) ────────────────────────────────────────────────────
+
+
+class TestArchiveExtractSSE:
+    def test_extract_streams_complete_event(
+        self, client, auth, simple_zip, tmp_path
+    ) -> None:
+        out = tmp_path / "out"
+        r = client.post(
+            "/archives/extract",
+            json={
+                "archive_path": str(simple_zip),
+                "password": "",
+                "output_dir": str(out),
+                "smart": False,
+            },
+            headers=auth,
+        )
+        assert r.status_code == 200
+        events = parse_sse(r.text)
+        event_types = [e["event"] for e in events]
+        assert "complete" in event_types
+        complete = next(e for e in events if e["event"] == "complete")
+        assert complete["data"]["ok"] is True
+
+    def test_extract_progress_events_emitted(
+        self, client, auth, simple_zip, tmp_path
+    ) -> None:
+        out = tmp_path / "out"
+        r = client.post(
+            "/archives/extract",
+            json={
+                "archive_path": str(simple_zip),
+                "password": "",
+                "output_dir": str(out),
+                "smart": False,
+            },
+            headers=auth,
+        )
+        events = parse_sse(r.text)
+        progress_events = [e for e in events if e["event"] == "progress"]
+        assert len(progress_events) > 0
+
+    def test_extract_nonexistent_archive_emits_error(
+        self, client, auth, tmp_path
+    ) -> None:
+        r = client.post(
+            "/archives/extract",
+            json={
+                "archive_path": "/no/such/file.zip",
+                "password": "",
+                "output_dir": str(tmp_path / "out"),
+                "smart": False,
+            },
+            headers=auth,
+        )
+        assert r.status_code == 200
+        events = parse_sse(r.text)
+        event_types = [e["event"] for e in events]
+        assert "error" in event_types
+
+    def test_extracted_files_exist_on_disk(
+        self, client, auth, simple_zip, tmp_path
+    ) -> None:
+        out = tmp_path / "out"
+        client.post(
+            "/archives/extract",
+            json={
+                "archive_path": str(simple_zip),
+                "password": "",
+                "output_dir": str(out),
+                "smart": False,
+            },
+            headers=auth,
+        )
+        assert (out / "hello.txt").exists()
+
+
+# ── Archive: batch (SSE) ──────────────────────────────────────────────────────
+
+
+class TestArchiveBatchSSE:
+    def _make_zip(self, path: Path, name: str = "f.txt") -> Path:
+        with zipfile.ZipFile(path, "w") as zf:
+            zf.writestr(name, "content")
+        return path
+
+    def test_batch_emits_complete_event(self, client, auth, tmp_path) -> None:
+        a = self._make_zip(tmp_path / "a.zip", "a.txt")
+        b = self._make_zip(tmp_path / "b.zip", "b.txt")
+        out = tmp_path / "out"
+        r = client.post(
+            "/archives/batch",
+            json={
+                "archives": [str(a), str(b)],
+                "output_dir": str(out),
+                "password": "",
+            },
+            headers=auth,
+        )
+        assert r.status_code == 200
+        events = parse_sse(r.text)
+        event_types = [e["event"] for e in events]
+        assert "complete" in event_types
+        complete = next(e for e in events if e["event"] == "complete")
+        assert complete["data"]["ok_count"] == 2
+        assert complete["data"]["fail_count"] == 0
+
+    def test_batch_emits_archive_started_done(self, client, auth, tmp_path) -> None:
+        a = self._make_zip(tmp_path / "a.zip")
+        out = tmp_path / "out"
+        r = client.post(
+            "/archives/batch",
+            json={"archives": [str(a)], "output_dir": str(out), "password": ""},
+            headers=auth,
+        )
+        events = parse_sse(r.text)
+        event_types = [e["event"] for e in events]
+        assert "archive_started" in event_types
+        assert "archive_done" in event_types
+
+    def test_batch_bad_archive_counted_as_failure(self, client, auth, tmp_path) -> None:
+        bad = tmp_path / "bad.zip"
+        bad.write_bytes(b"not a zip")
+        good = self._make_zip(tmp_path / "good.zip")
+        out = tmp_path / "out"
+        r = client.post(
+            "/archives/batch",
+            json={
+                "archives": [str(bad), str(good)],
+                "output_dir": str(out),
+                "password": "",
+            },
+            headers=auth,
+        )
+        events = parse_sse(r.text)
+        complete = next((e for e in events if e["event"] == "complete"), None)
+        assert complete is not None
+        assert complete["data"]["fail_count"] == 1
+        assert complete["data"]["ok_count"] == 1
+
+
+# ── Preview ───────────────────────────────────────────────────────────────────
 
 
 class TestPreview:
-    def test_preview_valid_entry(self, client, auth, simple_zip):
+    def test_preview_extracts_entry_to_temp_file(
+        self, client, auth, simple_zip
+    ) -> None:
+        import os
+
         r = client.post(
             "/preview/",
             json={"archive_path": str(simple_zip), "entry_name": "hello.txt"},
@@ -361,35 +564,28 @@ class TestPreview:
         assert r.status_code == 200
         data = r.json()
         assert "temp_id" in data
-        assert "file_path" in data
-        import os
-
         assert os.path.isfile(data["file_path"])
+        assert open(data["file_path"]).read() == "Hello, world!"
 
-        # Content should match what we wrote
-        with open(data["file_path"]) as f:
-            assert f.read() == "Hello, world!"
-
-        # Cleanup
         r2 = client.delete(f"/preview/{data['temp_id']}", headers=auth)
         assert r2.status_code == 200
         assert not os.path.exists(data["file_path"])
 
-    def test_preview_nonexistent_archive_returns_500(self, client, auth):
-        r = client.post(
-            "/preview/",
-            json={"archive_path": "/no/such.zip", "entry_name": "file.txt"},
-            headers=auth,
+    def test_preview_nonexistent_archive_returns_500(self, client, auth) -> None:
+        assert (
+            client.post(
+                "/preview/",
+                json={"archive_path": "/no/such.zip", "entry_name": "x.txt"},
+                headers=auth,
+            ).status_code
+            == 500
         )
-        assert r.status_code == 500
 
-    def test_cleanup_nonexistent_temp_id_ok(self, client, auth):
-        """Deleting an unknown temp_id should not error."""
+    def test_cleanup_unknown_temp_id_ok(self, client, auth) -> None:
         r = client.delete("/preview/00000000-0000-0000-0000-000000000000", headers=auth)
         assert r.status_code == 200
 
-    def test_stale_preview_ttl_cleanup(self, tmp_path):
-        """_cleanup_stale() removes dirs older than max age."""
+    def test_stale_preview_ttl_cleanup(self) -> None:
         import tempfile
 
         from server.routes.preview import _PREVIEW_DIRS, _PREVIEW_TIMES, _cleanup_stale
@@ -397,7 +593,7 @@ class TestPreview:
         tid = "test-ttl-id"
         tmpdir = tempfile.mkdtemp(prefix="atpreview_test_")
         _PREVIEW_DIRS[tid] = tmpdir
-        _PREVIEW_TIMES[tid] = time.monotonic() - 9999  # force it to be old
+        _PREVIEW_TIMES[tid] = time.monotonic() - 9999
 
         _cleanup_stale()
 

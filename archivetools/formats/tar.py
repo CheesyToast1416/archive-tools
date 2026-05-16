@@ -41,7 +41,7 @@ class TarHandler(ArchiveHandler):
                 members = tf.getmembers()
                 total = len(members)
                 for i, member in enumerate(members):
-                    tf.extract(member, path=output_dir)
+                    tf.extract(member, path=output_dir, filter="data")
                     if progress:
                         progress(i + 1, total, member.name)
             if verbose:

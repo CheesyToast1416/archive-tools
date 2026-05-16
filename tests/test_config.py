@@ -1,4 +1,4 @@
-"""Tests for config.settings, config.ui_state, and config.passwords."""
+"""Tests for archivetools.config: settings, ui_state, passwords."""
 
 from __future__ import annotations
 
@@ -16,67 +16,67 @@ from archivetools.config.ui_state import _reset_for_tests as _reset_ui_state
 
 
 class TestAppSettings:
-    def test_defaults(self) -> None:
+    def test_defaults_match_spec(self) -> None:
         s = AppSettings()
         assert s.smart_extraction is True
         assert s.trash_after_extract is False
+        assert s.trash_after_create is False
+        assert s.trash_after_batch is False
+        assert s.default_output_dir == ""
         assert s.default_password_encoding == ""
+        assert s.default_filename_encoding == ""
+        assert s.notifications_enabled is True
+
+    def test_does_not_have_ui_fields(self) -> None:
+        s = AppSettings()
         assert not hasattr(s, "active_nav")
         assert not hasattr(s, "recent_archives")
+        assert not hasattr(s, "theme")
 
-    def test_load_from_file(self, tmp_path: Path) -> None:
+    def test_load_overrides_defaults(self, tmp_path: Path) -> None:
         cfg = tmp_path / "settings.json"
         cfg.write_text(json.dumps({"smart_extraction": False}), encoding="utf-8")
         with patch("archivetools.config.settings._SETTINGS_PATH", cfg):
             s = AppSettings.load()
         assert s.smart_extraction is False
-        # Unset fields use defaults
-        assert s.trash_after_extract is False
+        assert s.trash_after_extract is False  # default preserved
 
     def test_load_ignores_unknown_keys(self, tmp_path: Path) -> None:
         cfg = tmp_path / "settings.json"
         cfg.write_text(
-            json.dumps({"unknown_future_key": True, "smart_extraction": False}),
+            json.dumps({"future_key": True, "smart_extraction": False}),
             encoding="utf-8",
         )
         with patch("archivetools.config.settings._SETTINGS_PATH", cfg):
             s = AppSettings.load()
         assert s.smart_extraction is False
-        assert not hasattr(s, "unknown_future_key")
+        assert not hasattr(s, "future_key")
 
     def test_load_corrupt_file_returns_defaults(self, tmp_path: Path) -> None:
         cfg = tmp_path / "settings.json"
         cfg.write_bytes(b"not valid json {{")
         with patch("archivetools.config.settings._SETTINGS_PATH", cfg):
             s = AppSettings.load()
-        assert s == AppSettings()  # all defaults
+        assert s == AppSettings()
+
+    def test_load_missing_file_returns_defaults(self, tmp_path: Path) -> None:
+        with patch(
+            "archivetools.config.settings._SETTINGS_PATH", tmp_path / "missing.json"
+        ):
+            s = AppSettings.load()
+        assert s == AppSettings()
 
     def test_save_round_trips(self, tmp_path: Path) -> None:
         cfg = tmp_path / "settings.json"
-        cfg_dir = tmp_path
         with (
             patch("archivetools.config.settings._SETTINGS_PATH", cfg),
-            patch("archivetools.config.settings._CONFIG_DIR", cfg_dir),
+            patch("archivetools.config.settings._CONFIG_DIR", tmp_path),
         ):
-            s = AppSettings(smart_extraction=False)
-            s.save()
+            AppSettings(smart_extraction=False).save()
             loaded = AppSettings.load()
         assert loaded.smart_extraction is False
 
-    def test_get_settings_singleton(self, tmp_path: Path) -> None:
-        _reset_for_tests()
-        cfg = tmp_path / "settings.json"
-        cfg_dir = tmp_path
-        with (
-            patch("archivetools.config.settings._SETTINGS_PATH", cfg),
-            patch("archivetools.config.settings._CONFIG_DIR", cfg_dir),
-        ):
-            a = get_settings()
-            b = get_settings()
-        assert a is b
-        _reset_for_tests()
-
-    def test_save_handles_missing_dir(self, tmp_path: Path) -> None:
+    def test_save_creates_missing_directory(self, tmp_path: Path) -> None:
         cfg = tmp_path / "sub" / "settings.json"
         cfg_dir = tmp_path / "sub"
         with (
@@ -85,6 +85,17 @@ class TestAppSettings:
         ):
             AppSettings().save()
         assert cfg.exists()
+
+    def test_get_settings_returns_singleton(self, tmp_path: Path) -> None:
+        _reset_for_tests()
+        with (
+            patch("archivetools.config.settings._SETTINGS_PATH", tmp_path / "s.json"),
+            patch("archivetools.config.settings._CONFIG_DIR", tmp_path),
+        ):
+            a = get_settings()
+            b = get_settings()
+        assert a is b
+        _reset_for_tests()
 
 
 # ── UIState ───────────────────────────────────────────────────────────────────
@@ -96,10 +107,9 @@ class TestUIState:
         assert s.active_nav == 1
         assert s.recent_archives == []
         assert s.theme == "system"
-        assert s.window_geometry == ""
         assert s.last_archive_dir == ""
 
-    def test_load_from_file(self, tmp_path: Path) -> None:
+    def test_load_overrides_selected_fields(self, tmp_path: Path) -> None:
         cfg = tmp_path / "ui_state.json"
         cfg.write_text(json.dumps({"active_nav": 3, "theme": "dark"}), encoding="utf-8")
         with patch("archivetools.config.ui_state._UI_STATE_PATH", cfg):
@@ -110,13 +120,12 @@ class TestUIState:
     def test_load_ignores_unknown_keys(self, tmp_path: Path) -> None:
         cfg = tmp_path / "ui_state.json"
         cfg.write_text(
-            json.dumps({"unknown_future_key": True, "active_nav": 2}),
-            encoding="utf-8",
+            json.dumps({"future_key": True, "active_nav": 2}), encoding="utf-8"
         )
         with patch("archivetools.config.ui_state._UI_STATE_PATH", cfg):
             s = UIState.load()
         assert s.active_nav == 2
-        assert not hasattr(s, "unknown_future_key")
+        assert not hasattr(s, "future_key")
 
     def test_load_corrupt_file_returns_defaults(self, tmp_path: Path) -> None:
         cfg = tmp_path / "ui_state.json"
@@ -127,116 +136,95 @@ class TestUIState:
 
     def test_save_round_trips(self, tmp_path: Path) -> None:
         cfg = tmp_path / "ui_state.json"
-        cfg_dir = tmp_path
         with (
             patch("archivetools.config.ui_state._UI_STATE_PATH", cfg),
-            patch("archivetools.config.ui_state._CONFIG_DIR", cfg_dir),
+            patch("archivetools.config.ui_state._CONFIG_DIR", tmp_path),
         ):
-            s = UIState(active_nav=2)
-            s.save()
+            UIState(active_nav=2).save()
             loaded = UIState.load()
         assert loaded.active_nav == 2
 
     def test_recent_archives_round_trips(self, tmp_path: Path) -> None:
         cfg = tmp_path / "ui_state.json"
-        cfg_dir = tmp_path
         paths = ["/home/user/a.zip", "/home/user/b.rar"]
         with (
             patch("archivetools.config.ui_state._UI_STATE_PATH", cfg),
-            patch("archivetools.config.ui_state._CONFIG_DIR", cfg_dir),
+            patch("archivetools.config.ui_state._CONFIG_DIR", tmp_path),
         ):
-            s = UIState(recent_archives=paths)
-            s.save()
+            UIState(recent_archives=paths).save()
             loaded = UIState.load()
         assert loaded.recent_archives == paths
 
-    def test_get_ui_state_singleton(self, tmp_path: Path) -> None:
+    def test_get_ui_state_returns_singleton(self, tmp_path: Path) -> None:
         _reset_ui_state()
-        cfg = tmp_path / "ui_state.json"
-        cfg_dir = tmp_path
         with (
-            patch("archivetools.config.ui_state._UI_STATE_PATH", cfg),
-            patch("archivetools.config.ui_state._CONFIG_DIR", cfg_dir),
+            patch("archivetools.config.ui_state._UI_STATE_PATH", tmp_path / "ui.json"),
+            patch("archivetools.config.ui_state._CONFIG_DIR", tmp_path),
         ):
             a = get_ui_state()
             b = get_ui_state()
         assert a is b
         _reset_ui_state()
 
-    def test_migration_from_legacy_settings(self, tmp_path: Path) -> None:
-        legacy_cfg = tmp_path / "settings.json"
-        legacy_cfg.write_text(
+    def test_migration_from_legacy_settings_file(self, tmp_path: Path) -> None:
+        legacy = tmp_path / "settings.json"
+        legacy.write_text(
             json.dumps({"smart_extraction": False, "active_nav": 4, "theme": "dark"}),
             encoding="utf-8",
         )
         ui_cfg = tmp_path / "ui_state.json"
         with (
             patch("archivetools.config.ui_state._UI_STATE_PATH", ui_cfg),
-            patch("archivetools.config.ui_state._LEGACY_SETTINGS_PATH", legacy_cfg),
+            patch("archivetools.config.ui_state._LEGACY_SETTINGS_PATH", legacy),
             patch("archivetools.config.ui_state._CONFIG_DIR", tmp_path),
         ):
             s = UIState.load()
         assert s.active_nav == 4
         assert s.theme == "dark"
-        assert ui_cfg.exists()  # migration wrote the new file
+        assert ui_cfg.exists()
 
 
-# ── PasswordStore (mocked keyring) ───────────────────────────────────────────
+# ── PasswordStore ─────────────────────────────────────────────────────────────
 
 
 class TestPasswordStore:
-    """Tests using a mocked keyring to avoid OS-level side effects."""
-
     @pytest.fixture()
     def store(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-        from archivetools.config.passwords import (
-            PasswordStore,
-            _reset_for_tests,
-        )
+        from archivetools.config.passwords import PasswordStore, _reset_for_tests
 
         _reset_for_tests()
         monkeypatch.setattr(
-            "archivetools.config.passwords._PASSWORDS_PATH",
-            tmp_path / "passwords.json",
+            "archivetools.config.passwords._PASSWORDS_PATH", tmp_path / "passwords.json"
         )
         monkeypatch.setattr("archivetools.config.passwords._CONFIG_DIR", tmp_path)
 
-        # Mock keyring
         _vault: dict[str, str] = {}
-
-        def mock_set(service, user, pwd):
-            _vault[user] = pwd
-
-        def mock_get(service, user):
-            return _vault.get(user)
-
-        def mock_del(service, user):
-            _vault.pop(user, None)
-
         with (
-            patch("keyring.set_password", mock_set),
-            patch("keyring.get_password", mock_get),
-            patch("keyring.delete_password", mock_del),
+            patch(
+                "keyring.set_password",
+                lambda _svc, user, pwd: _vault.__setitem__(user, pwd),
+            ),
+            patch("keyring.get_password", lambda _svc, user: _vault.get(user)),
+            patch("keyring.delete_password", lambda _svc, user: _vault.pop(user, None)),
         ):
             s = PasswordStore()
-            s._keyring_ok = True  # force keyring path
+            s._keyring_ok = True
             yield s
 
         _reset_for_tests()
 
-    def test_add_and_retrieve(self, store) -> None:
+    def test_add_and_retrieve_password(self, store) -> None:
         entry = store.add("Work", "secret123")
         assert entry.label == "Work"
         assert store.get_password(entry.id) == "secret123"
 
-    def test_list_entries(self, store) -> None:
+    def test_list_entries_in_insertion_order(self, store) -> None:
         store.add("A", "pw1")
         store.add("B", "pw2")
-        labels = [e.label for e in store.entries()]
-        assert labels == ["A", "B"]
+        assert [e.label for e in store.entries()] == ["A", "B"]
 
     def test_update_password(self, store) -> None:
-        entry = store.add("MyLabel", "old")
+        entry = store.add("Label", "old")
         store.update(entry.id, password="new")
         assert store.get_password(entry.id) == "new"
 
@@ -245,7 +233,7 @@ class TestPasswordStore:
         store.update(entry.id, label="NewLabel")
         assert store.entries()[0].label == "NewLabel"
 
-    def test_delete_entry(self, store) -> None:
+    def test_delete_removes_entry(self, store) -> None:
         entry = store.add("ToDelete", "pw")
         store.delete(entry.id)
         assert store.entries() == []
@@ -259,37 +247,32 @@ class TestPasswordStore:
         with pytest.raises(KeyError):
             store.update("bad-id", label="X")
 
-    def test_observer_called_on_add(self, store) -> None:
-        called = []
+    def test_hint_stored_in_metadata(self, store) -> None:
+        entry = store.add("Label", "pw", hint="work files")
+        assert entry.hint == "work files"
+        assert store.entries()[0].hint == "work files"
+
+    def test_on_change_observer_called_on_add(self, store) -> None:
+        called: list[int] = []
         store.on_change(lambda: called.append(1))
         store.add("X", "pw")
         assert called == [1]
 
-    def test_observer_called_on_delete(self, store) -> None:
+    def test_on_change_observer_called_on_delete(self, store) -> None:
         entry = store.add("X", "pw")
-        called = []
+        called: list[int] = []
         store.on_change(lambda: called.append(1))
         store.delete(entry.id)
         assert called == [1]
 
-    def test_hint_stored_in_metadata(self, tmp_path: Path, store) -> None:
-        entry = store.add("Label", "pw", hint="work files")
-        assert entry.hint == "work files"
-        reloaded_entries = [e for e in store.entries() if e.id == entry.id]
-        assert reloaded_entries[0].hint == "work files"
-
-    def test_persistence_round_trip(self, tmp_path: Path, store) -> None:
+    def test_metadata_persists_to_new_store_instance(
+        self, tmp_path: Path, store
+    ) -> None:
         from archivetools.config.passwords import PasswordStore
 
         _vault: dict[str, str] = {}
-
-        def mock_get(service, user):
-            return _vault.get(user)
-
         store.add("A", "pw-a", hint="hint-a")
-
-        with patch("keyring.get_password", mock_get):
+        with patch("keyring.get_password", lambda _svc, user: _vault.get(user)):
             store2 = PasswordStore()
             store2._keyring_ok = True
-        labels = [e.label for e in store2.entries()]
-        assert "A" in labels
+        assert any(e.label == "A" for e in store2.entries())
