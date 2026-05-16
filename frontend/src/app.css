@@ -15,7 +15,7 @@
 
 :root {
   /* Colorful soft gradient — glass only looks like glass when it blurs something
-     behind it. Near-uniform grays produce uniform gray panels, not glass. */
+       behind it. Near-uniform grays produce uniform gray panels, not glass. */
   --bg: linear-gradient(140deg, #bdd4ff 0%, #d2baff 35%, #ffbadb 70%, #baffd6 100%);
 
   /* Glass material — low opacity so the gradient shows through clearly */
@@ -30,7 +30,7 @@
   --glass-blur: blur(40px) saturate(180%);
 
   /* Refraction shimmer — diagonal gradient that simulates light bending through
-     the glass volume. Light mode: neutral white scatter from top-left. */
+       the glass volume. Light mode: neutral white scatter from top-left. */
   --glass-shimmer: linear-gradient(
     135deg,
     rgba(255, 255, 255, 0.16) 0%,
@@ -74,7 +74,7 @@
   --bg: linear-gradient(145deg, #1a1612 0%, #100e0a 55%, #161210 100%);
 
   /* Glass material — neutral dark base, no colour cast of its own.
-     The shimmer carries the pink-blue palette instead. */
+       The shimmer carries the pink-blue palette instead. */
   --glass: rgba(26, 24, 26, 0.7);
   --glass-raised: rgba(38, 34, 38, 0.9);
   --glass-inset: rgba(255, 255, 255, 0.06);
@@ -84,7 +84,7 @@
   --glass-specular: rgba(210, 220, 255, 0.22);
 
   /* Shimmer mirrors the light-mode pastel palette: sky blue → periwinkle → rose.
-     The background stays warm charcoal; the glass panels echo the light side. */
+       The background stays warm charcoal; the glass panels echo the light side. */
   --glass-shimmer: linear-gradient(
     135deg,
     rgba(189, 210, 255, 0.22) 0%,
@@ -133,6 +133,7 @@
     --glass-blur: none;
     --glass-specular: transparent;
   }
+
   .dark {
     --glass: #1c1a1c;
     --glass-raised: #282428;
@@ -150,6 +151,7 @@
     --text-2: rgba(28, 28, 30, 0.88);
     --text-3: rgba(28, 28, 30, 0.6);
   }
+
   .dark {
     --glass-border: rgba(255, 255, 255, 0.36);
     --text-2: rgba(235, 235, 245, 0.9);
@@ -171,7 +173,7 @@ html,
 body {
   height: 100%;
   margin: 0;
-  font-family: var(--font-sans);
+  font-family: var(--font-sans), sans-serif;
   font-size: 13px;
   line-height: 1.5;
   color: var(--text);
@@ -189,13 +191,16 @@ body {
   width: 5px;
   height: 5px;
 }
+
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
   background: rgba(128, 128, 128, 0.22);
   border-radius: 3px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(128, 128, 128, 0.42);
 }
@@ -263,7 +268,7 @@ body {
   -webkit-backdrop-filter: var(--glass-blur);
   color: var(--text);
   font-size: 13px;
-  font-family: var(--font-sans);
+  font-family: var(--font-sans), sans-serif;
   font-weight: 500;
   cursor: pointer;
   transition:
@@ -292,6 +297,7 @@ body {
 .btn:active:not(:disabled) {
   transform: scale(0.97);
 }
+
 .btn:disabled {
   opacity: 0.38;
   cursor: not-allowed;
@@ -336,11 +342,11 @@ body {
   width: 100%;
   padding: 7px 10px;
   border-radius: 8px;
-  border: 0.5px solid var(--glass-border);
+  border: 1px solid var(--glass-border);
   background: var(--glass-inset);
   color: var(--text);
   font-size: 13px;
-  font-family: var(--font-sans);
+  font-family: var(--font-sans), sans-serif;
   outline: none;
   transition:
     border-color 0.15s,

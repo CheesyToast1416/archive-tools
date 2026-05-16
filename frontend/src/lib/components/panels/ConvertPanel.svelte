@@ -1,9 +1,9 @@
 <script lang="ts">
   import { open, save } from "@tauri-apps/plugin-dialog";
-  import { ChevronDown, ChevronRight } from "lucide-svelte";
-  import { ARCHIVE_EXTENSIONS, ARCHIVE_FORMATS } from "../../constants";
-  import { convertArchive } from "../../api/archives";
-  import { appSettings } from "../../stores/appSettings";
+  import { ChevronDown, ChevronRight } from "@lucide/svelte";
+  import { ARCHIVE_EXTENSIONS, ARCHIVE_FORMATS } from "$lib/constants";
+  import { convertArchive } from "$lib/api/archives";
+  import { appSettings } from "$lib/stores/appSettings";
   import PasswordField from "../widgets/PasswordField.svelte";
   import CollapsibleLog from "../widgets/CollapsibleLog.svelte";
 

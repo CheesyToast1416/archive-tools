@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ChevronDown, ChevronRight } from "lucide-svelte";
+  import { ChevronDown, ChevronRight } from "@lucide/svelte";
 
   export let log: string[] = [];
   let expanded = false;
@@ -39,7 +39,7 @@
     border: none;
     color: var(--text-2);
     font-size: 12px;
-    font-family: var(--font-sans);
+    font-family: var(--font-sans), sans-serif;
     cursor: pointer;
     width: 100%;
     text-align: left;
@@ -59,7 +59,7 @@
     margin: 0;
     padding: 8px 12px 10px;
     font-size: 11px;
-    font-family: var(--font-mono);
+    font-family: var(--font-mono), sans-serif;
     color: var(--text-2);
     background: var(--glass-inset);
     max-height: 140px;

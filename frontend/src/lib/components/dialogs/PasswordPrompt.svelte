@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { KeyRound, X } from "lucide-svelte";
+  import { KeyRound, X } from "@lucide/svelte";
   import PasswordField from "../widgets/PasswordField.svelte";
 
   export let message = "Enter password:";

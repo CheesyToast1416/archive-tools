@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Archive } from "lucide-svelte";
+  import { Archive } from "@lucide/svelte";
   import { open } from "@tauri-apps/plugin-dialog";
   import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
   import { ARCHIVE_EXTENSIONS } from "$lib/constants";

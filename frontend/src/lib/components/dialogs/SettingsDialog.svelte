@@ -1,20 +1,20 @@
 <script lang="ts">
   import { getVersion } from "@tauri-apps/api/app";
-  import { Settings, X } from "lucide-svelte";
-  import { createEventDispatcher, onMount } from "svelte";
+  import { Settings, X } from "@lucide/svelte";
+  import { onMount } from "svelte";
   import { appSettings, persistAppSettings } from "$lib/stores/appSettings";
 
-  const dispatch = createEventDispatcher<{ close: void }>();
+  let { close } = $props();
 
   let draft = { ...$appSettings };
-  let version = "";
+  let version = $state("");
   onMount(async () => {
     version = await getVersion();
   });
 
   async function save() {
     await persistAppSettings(draft);
-    dispatch("close");
+    close();
   }
 </script>
 
@@ -25,7 +25,7 @@
         <Settings size={16} color="var(--accent)" />
       </div>
       <span class="dialog-title">Preferences</span>
-      <button class="close-btn" onclick={() => dispatch("close")}>
+      <button class="close-btn" onclick={() => close()}>
         <X size={14} />
       </button>
     </div>
@@ -125,7 +125,7 @@
 
     <div class="dialog-footer">
       <span class="version-tag">v{version}</span>
-      <button class="btn" onclick={() => dispatch("close")}>Cancel</button>
+      <button class="btn" onclick={() => close()}>Cancel</button>
       <button class="btn btn-primary" onclick={save}>Save Changes</button>
     </div>
   </div>

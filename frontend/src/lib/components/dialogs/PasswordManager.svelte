@@ -1,24 +1,23 @@
 <script lang="ts">
-  import { KeyRound, Plus, ShieldAlert, Trash2, X } from "lucide-svelte";
-  import { createEventDispatcher, onMount } from "svelte";
+  import { KeyRound, Plus, ShieldAlert, Trash2, X } from "@lucide/svelte";
+  import { onMount } from "svelte";
   import {
     addPassword,
     deletePassword,
     getKeyringStatus,
     listPasswords,
     type PasswordEntry,
-  } from "../../api/passwords";
+  } from "$lib/api/passwords";
 
-  const dispatch = createEventDispatcher<{ close: void }>();
-
-  let entries: PasswordEntry[] = [];
-  let keyringAvailable = true;
-  let newLabel = "";
-  let newPassword = "";
-  let newHint = "";
-  let adding = false;
-  let error = "";
-  let confirmDeleteId: string | null = null;
+  let { close } = $props();
+  let entries: PasswordEntry[] = $state([]);
+  let keyringAvailable = $state(true);
+  let newLabel = $state("");
+  let newPassword = $state("");
+  let newHint = $state("");
+  let adding = $state(false);
+  let error = $state("");
+  let confirmDeleteId: string | null = $state(null);
 
   onMount(async () => {
     entries = await listPasswords().catch(() => []);
@@ -60,7 +59,7 @@
         <KeyRound size={16} color="var(--accent)" />
       </div>
       <span class="dialog-title">Saved Passwords</span>
-      <button class="close-btn" onclick={() => dispatch("close")}>
+      <button class="close-btn" onclick={() => close()}>
         <X size={14} />
       </button>
     </div>
@@ -119,8 +118,9 @@
               onclick={() => {
                 adding = false;
                 error = "";
-              }}>Cancel</button
-            >
+              }}
+              >Cancel
+            </button>
             <button class="btn btn-primary" onclick={doAdd} disabled={!newLabel || !newPassword}>
               <Plus size={13} />
               Add Password
@@ -138,7 +138,7 @@
         </button>
       {/if}
       <div style="flex:1"></div>
-      <button class="btn" onclick={() => dispatch("close")}>Done</button>
+      <button class="btn" onclick={() => close()}>Done</button>
     </div>
   </div>
 </div>

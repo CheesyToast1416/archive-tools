@@ -3,13 +3,13 @@
   import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
   import { onDestroy, onMount } from "svelte";
   import { SvelteSet } from "svelte/reactivity";
-  import { batchExtract } from "../../api/archives";
-  import { appSettings } from "../../stores/appSettings";
-  import { ChevronDown, ChevronRight } from "lucide-svelte";
+  import { batchExtract } from "$lib/api/archives";
+  import { appSettings } from "$lib/stores/appSettings";
+  import { ChevronDown, ChevronRight } from "@lucide/svelte";
   import PasswordField from "../widgets/PasswordField.svelte";
   import ProgressBar from "../widgets/ProgressBar.svelte";
   import CollapsibleLog from "../widgets/CollapsibleLog.svelte";
-  import { ARCHIVE_EXTENSIONS } from "../../constants";
+  import { ARCHIVE_EXTENSIONS } from "$lib/constants";
 
   interface ArchiveRow {
     path: string;
@@ -133,8 +133,9 @@
         rows = [];
         selected = new SvelteSet();
       }}
-      disabled={working}>Clear</button
-    >
+      disabled={working}
+      >Clear
+    </button>
     <span class="counter">{rows.filter((r) => r.status === "done").length} / {rows.length}</span>
     <button
       class="btn btn-primary"

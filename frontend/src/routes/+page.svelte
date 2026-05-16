@@ -3,11 +3,11 @@
   import { listen } from "@tauri-apps/api/event";
   import { check as checkUpdate, type Update } from "@tauri-apps/plugin-updater";
   import "../app.css";
-  import { uiState, loadUIState } from "../lib/stores/uiState";
-  import { loadAppSettings } from "../lib/stores/appSettings";
+  import { loadUIState, uiState } from "$lib/stores/uiState";
+  import { loadAppSettings } from "$lib/stores/appSettings";
   import Sidebar from "../lib/components/Sidebar.svelte";
-  import { NAV_RECENT, NAV_EXTRACT, NAV_CREATE, NAV_BATCH, NAV_CONVERT } from "../lib/constants";
-  import { AlertTriangle, X, Sparkles } from "lucide-svelte";
+  import { NAV_BATCH, NAV_CONVERT, NAV_CREATE, NAV_EXTRACT, NAV_RECENT } from "$lib/constants";
+  import { Sparkles, TriangleAlert, X } from "@lucide/svelte";
 
   import ExtractPanel from "../lib/components/panels/ExtractPanel.svelte";
   import RecentPanel from "../lib/components/panels/RecentPanel.svelte";
@@ -31,7 +31,7 @@
       return;
     }
 
-    listen("sidecar-unavailable", () => {
+    await listen("sidecar-unavailable", () => {
       sidecarDown = true;
     });
 
@@ -60,7 +60,7 @@
 {#if error}
   <div class="splash">
     <div class="splash-card glass-raised">
-      <AlertTriangle size={32} color="var(--error)" />
+      <TriangleAlert size={32} color="var(--error)" />
       <h2>Could not connect to server</h2>
       <p>{error}</p>
     </div>
@@ -78,7 +78,7 @@
     <main class="content">
       {#if sidecarDown}
         <div class="banner banner-error">
-          <AlertTriangle size={14} />
+          <TriangleAlert size={14} />
           The ArchiveTools backend has stopped responding. Please restart the app.
         </div>
       {/if}
@@ -156,6 +156,7 @@
     font-weight: 600;
     color: var(--text);
   }
+
   .splash-card p {
     margin: 0;
     font-size: 12px;
@@ -211,7 +212,7 @@
     cursor: pointer;
     text-decoration: underline;
     font-size: 12px;
-    font-family: var(--font-sans);
+    font-family: var(--font-sans), sans-serif;
     padding: 0;
   }
 

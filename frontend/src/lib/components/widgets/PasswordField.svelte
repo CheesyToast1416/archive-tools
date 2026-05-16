@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Eye, EyeOff, KeyRound } from "lucide-svelte";
+  import { Eye, EyeOff, KeyRound } from "@lucide/svelte";
   import { getPasswordSecret, listPasswords, type PasswordEntry } from "$lib/api/passwords";
 
   export let value = "";

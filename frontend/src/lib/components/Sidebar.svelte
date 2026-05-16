@@ -10,7 +10,7 @@
     PackagePlus,
     Settings,
     Sun,
-  } from "lucide-svelte";
+  } from "@lucide/svelte";
   import { applyTheme, persistUIState, uiState } from "../stores/uiState";
   import { NAV_BATCH, NAV_CONVERT, NAV_CREATE, NAV_EXTRACT, NAV_RECENT } from "../constants";
   import SettingsDialog from "./dialogs/SettingsDialog.svelte";
@@ -98,10 +98,10 @@
 </aside>
 
 {#if showSettings}
-  <SettingsDialog on:close={() => (showSettings = false)} />
+  <SettingsDialog close={() => (showSettings = false)} />
 {/if}
 {#if showPasswords}
-  <PasswordManager on:close={() => (showPasswords = false)} />
+  <PasswordManager close={() => (showPasswords = false)} />
 {/if}
 
 <style>
@@ -174,7 +174,7 @@
     background: transparent;
     color: var(--text-2);
     font-size: 13px;
-    font-family: var(--font-sans);
+    font-family: var(--font-sans) sans-serif;
     font-weight: 500;
     cursor: pointer;
     text-align: left;

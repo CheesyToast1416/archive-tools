@@ -11,7 +11,7 @@
     FolderOpen,
     Minus,
     Plus,
-  } from "lucide-svelte";
+  } from "@lucide/svelte";
   import { createEventDispatcher, onDestroy, onMount } from "svelte";
   import { SvelteSet } from "svelte/reactivity";
   import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
@@ -290,7 +290,7 @@
     margin-left: auto;
     padding: 3px 8px;
     font-size: 11px;
-    font-family: var(--font-sans);
+    font-family: var(--font-sans) sans-serif;
     font-weight: 500;
     border-radius: 6px;
     border: 1px solid var(--glass-border);

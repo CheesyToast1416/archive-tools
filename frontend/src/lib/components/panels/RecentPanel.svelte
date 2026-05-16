@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Archive, FolderOpen, Trash2 } from "lucide-svelte";
+  import { Archive, FolderOpen, Trash2 } from "@lucide/svelte";
   import { stat } from "@tauri-apps/plugin-fs";
   import { open } from "@tauri-apps/plugin-dialog";
   import { addRecent, clearRecents, persistUIState, uiState } from "$lib/stores/uiState";
@@ -232,8 +232,8 @@
   }
 
   /* Dark mode: make cards more opaque so text/icons are legible against
-       the dark gradient background. The global .glass-raised (0.88) is too
-       transparent here — content bleeds through and reduces readability. */
+         the dark gradient background. The global .glass-raised (0.88) is too
+         transparent here — content bleeds through and reduces readability. */
   :global(.dark) .card {
     background-color: rgba(42, 38, 44, 0.96);
   }

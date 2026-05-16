@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Image, Info, LayoutGrid } from "lucide-svelte";
+  import { Image, Info, LayoutGrid } from "@lucide/svelte";
   import { convertFileSrc } from "@tauri-apps/api/core";
   import { formatBytes } from "$lib/constants";
   import type { InfoResponse } from "$lib/api/archives";
@@ -252,7 +252,7 @@
     background: transparent;
     color: var(--text-2);
     font-size: 12px;
-    font-family: var(--font-sans);
+    font-family: var(--font-sans) sans-serif;
     font-weight: 500;
     cursor: pointer;
     justify-content: center;
@@ -336,7 +336,7 @@
     height: 100%;
     margin: 0;
     padding: 12px 14px;
-    font-family: var(--font-mono);
+    font-family: var(--font-mono) sans-serif;
     font-size: 11px;
     overflow: auto;
     color: var(--text);
@@ -377,7 +377,7 @@
   }
 
   .codec-hint code {
-    font-family: var(--font-mono);
+    font-family: var(--font-mono) sans-serif;
     background: transparent;
   }
 
